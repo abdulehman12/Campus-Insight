@@ -1,9 +1,36 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import { TrendingUp, Award, Clock, ArrowUpRight, Share2, MessageCircle, Trophy } from 'lucide-react';
 
 
 const Home = () => {
+  const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Check if authToken exists in localStorage
+    const token = localStorage.getItem('authToken');
+    
+    if (!token) {
+      // Redirect to login if no token
+      navigate('/login');
+    } else {
+      // User is authenticated
+      setIsAuthenticated(true);
+    }
+    setIsLoading(false);
+  }, [navigate]);
+
+  if (isLoading) {
+    return <div className="p-8">Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return null; // Will redirect via navigate
+  }
+
   return (
     <div className="grid grid-cols-12 gap-8 py-4">
       {/* Left Column: Post Feed */}

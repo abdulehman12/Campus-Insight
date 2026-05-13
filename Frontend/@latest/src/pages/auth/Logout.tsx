@@ -6,6 +6,15 @@ import { LogOut, Home, Key } from 'lucide-react';
 const Logout = () => {
   const navigate = useNavigate();
 
+  const handleLogout = () => {
+    // Clear localStorage
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    
+    // Navigate to login page
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen academic-gradient flex items-center justify-center p-6">
       <Card className="max-w-md w-full p-12 text-center space-y-8 shadow-2xl">
@@ -22,7 +31,7 @@ const Logout = () => {
 
         <div className="space-y-4 pt-4">
           <Button 
-            onClick={() => navigate('/')}
+            onClick={handleLogout}
             className="w-full py-4 text-lg"
           >
             Confirm Termination
