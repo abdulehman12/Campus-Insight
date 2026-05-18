@@ -7,10 +7,11 @@ import ormconfig from './ormconfig';
 import { MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { AuthMiddleware } from './User/middlewares/auth.middleware';
 import { ConfigModule } from '@nestjs/config';
-import { Admin } from 'typeorm';
 import { AdminModule } from './Admin/admin.module';
+import { InsightModule } from './Insights/insight.module';
+
 @Module({
-  imports: [TypeOrmModule.forRoot(ormconfig), UserModule, AdminModule,
+  imports: [TypeOrmModule.forRoot(ormconfig), UserModule, AdminModule,InsightModule,
     ConfigModule.forRoot({
       isGlobal: true, // Makes ConfigService available everywhere
       envFilePath: '.env', // Points to your env file

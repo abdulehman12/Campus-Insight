@@ -1,6 +1,7 @@
-import { BeforeInsert, Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { BeforeInsert, Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import * as bcrypt from 'bcrypt';
 import { UserRole } from "@app/types/userRole.type";
+import { InsightEntity } from "@app/Insights/insight.entity";
 
 @Entity({
     name: 'users'
@@ -47,6 +48,9 @@ export class UserEntity{
         enum: UserRole,
         default: UserRole.STUDENT })
     role!: UserRole;
+
+    @OneToMany(() => InsightEntity, (insight) => insight.author)
+    insights!: InsightEntity[];
 
     @BeforeInsert()
     async hashPassword() {
