@@ -2,12 +2,13 @@ import { BeforeInsert, Column, Entity, OneToMany, PrimaryGeneratedColumn } from 
 import * as bcrypt from 'bcrypt';
 import { UserRole } from "@app/types/userRole.type";
 import { InsightEntity } from "@app/Insights/insight.entity";
+import { FollowUserEntity } from "@app/Profile/followUser.entity";
 
 @Entity({
     name: 'users'
 })
 
-export class UserEntity{
+export class UserEntity {
     @PrimaryGeneratedColumn()
     id!: number
 
@@ -26,10 +27,10 @@ export class UserEntity{
     @Column()
     unit!: string
 
-    @Column({default: ''})
+    @Column({ default: '' })
     bio!: string
 
-    @Column({default: ''})
+    @Column({ default: '' })
     image!: string
 
     @Column()
@@ -38,19 +39,29 @@ export class UserEntity{
     @Column({ default: false })
     isVerified!: boolean;
 
-        @Column({ nullable: true })
+    @Column({ nullable: true })
     otpCode!: string;
 
-    
 
-    @Column({ 
+
+    @Column({
         type: 'enum',
         enum: UserRole,
-        default: UserRole.STUDENT })
+        default: UserRole.STUDENT
+    })
     role!: UserRole;
 
     @OneToMany(() => InsightEntity, (insight) => insight.author)
     insights!: InsightEntity[];
+
+    @OneToMany(() => FollowUserEntity, (follow) => follow.follower)
+    followingRelations!: FollowUserEntity[];
+
+    @OneToMany(() => FollowUserEntity, (follow) => follow.following)
+    followerRelations!: FollowUserEntity[];
+
+    @Column({default: false})
+    following!: boolean
 
     @BeforeInsert()
     async hashPassword() {

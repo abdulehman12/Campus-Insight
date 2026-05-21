@@ -5,4 +5,5 @@ export enum InsightType {
   EVENT = 'event',
   ANNOUNCEMENT = 'announcement',
   ACHIEVEMENT = 'achievement',
+  SPORTS = 'sports',
 }

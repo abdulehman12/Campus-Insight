@@ -29,7 +29,7 @@ function App() {
           <Route path="/announcements" element={<Placeholder title="Bulletin Board" />} />
           <Route path="/messaging" element={<Placeholder title="Academic Exchange" />} />
           <Route path="/achievements" element={<Placeholder title="Scholastic Honors" />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/:username" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/help" element={<Help />} />
           <Route path="/create-post" element={<Placeholder title="New Insight" />} />
