@@ -3,10 +3,10 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { InsightEntity } from "./insight.entity";
 import { User } from "@app/User/decorators/user.decorator";
 import { UserEntity } from "@app/User/user.entity";
-import { CreateInsightDto } from "./types/insight.dto";
+import { CreateInsightDto } from "./dto/insight.dto";
 import { Multer } from "multer";
 import { Repository } from "typeorm";
-import { GetInsightsQueryDto } from "./types/getInsight.dto";
+import { GetInsightsQueryDto } from "./dto/getInsight.dto";
 import { EndlessFeedResponse } from "./types/infiniteFeed.interface";
 
 @Injectable()

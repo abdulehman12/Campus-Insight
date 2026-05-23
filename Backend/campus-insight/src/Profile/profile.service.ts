@@ -5,6 +5,7 @@ import { UserEntity } from "../User/user.entity";
 import { FollowUserEntity } from "./followUser.entity";
 import { ProfileType } from "./types/profile.type";
 import { ProfileResponseInterface } from "./types/profile.interface";
+import { EditProfileDto } from "./dto/editProfile.dto";
 @Injectable()
 export class ProfileService {
     constructor(
@@ -15,29 +16,29 @@ export class ProfileService {
     ) { }
 
     async getProfile(userId: number, username: string): Promise<ProfileType> {
-    const user = await this.userRepository.findOne({
-        where: { username },
-        relations: ['followerRelations', 'followingRelations', 'insights']
-    });
-    if (!user) {
-        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+        const user = await this.userRepository.findOne({
+            where: { username },
+            relations: ['followerRelations', 'followingRelations', 'insights']
+        });
+        if (!user) {
+            throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+        }
+
+        // Check if the logged-in user actually follows this profile
+        const isFollowing = await this.followUserRepository.findOne({
+            where: { followerId: userId, followingId: user.id }
+        });
+
+        const followersCount = user.followerRelations?.length || 0;
+        const followingCount = user.followingRelations?.length || 0;
+
+        return {
+            ...user,
+            followersCount,
+            followingCount,
+            following: !!isFollowing, // true only if a follow record exists
+        };
     }
-
-    // Check if the logged-in user actually follows this profile
-    const isFollowing = await this.followUserRepository.findOne({
-        where: { followerId: userId, followingId: user.id }
-    });
-
-    const followersCount = user.followerRelations?.length || 0;
-    const followingCount = user.followingRelations?.length || 0;
-
-    return {
-        ...user,
-        followersCount,
-        followingCount,
-        following: !!isFollowing, // true only if a follow record exists
-    };
-}
 
     async followUser(currentUserId: number, targetUsername: string): Promise<ProfileType> {
         // 1. Find the target user
@@ -113,6 +114,48 @@ export class ProfileService {
         return {
             ...updatedTargetUser,
             following: false, // Manually forcing it false here ensures your API response is immediate
+            followersCount,
+            followingCount
+        } as ProfileType;
+    }
+
+    async editProfile(userId: number, editProfileDto: EditProfileDto): Promise<ProfileType> {
+        // 1. Fetch the current user
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            relations: ['followerRelations', 'followingRelations']
+        });
+
+        if (!user) {
+            throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+        }
+
+        // 2. If changing unique fields (username/email), check if they are already taken
+        if (editProfileDto.username && editProfileDto.username !== user.username) {
+            const usernameExists = await this.userRepository.findOne({ where: { username: editProfileDto.username } });
+            if (usernameExists) {
+                throw new HttpException('Username is already taken', HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        if (editProfileDto.email && editProfileDto.email !== user.email) {
+            const emailExists = await this.userRepository.findOne({ where: { email: editProfileDto.email } });
+            if (emailExists) {
+                throw new HttpException('Email is already registered', HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        // 3. Merge the changes into the entity and save
+        // Using .assign() or .merge() updates the entity object in memory AND prepares it for DB save
+        Object.assign(user, editProfileDto);
+        await this.userRepository.save(user);
+
+        // 4. Calculate relation counts for the response
+        const followersCount = user.followerRelations?.length || 0;
+        const followingCount = user.followingRelations?.length || 0;
+
+        return {
+            ...user,
             followersCount,
             followingCount
         } as ProfileType;

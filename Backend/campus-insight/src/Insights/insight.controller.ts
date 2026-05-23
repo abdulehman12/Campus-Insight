@@ -1,13 +1,13 @@
 import { Body, Controller, Get, Post, Query, UploadedFile, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from "@nestjs/common";
 import { InsightService } from "./insight.service";
 import { AuthGuard } from "@app/User/guards/auth.guard";
-import { CreateInsightDto } from "./types/insight.dto";
+import { CreateInsightDto } from "./dto/insight.dto";
 import { FileInterceptor } from "@nestjs/platform-express/multer/interceptors/file.interceptor";
 import { diskStorage } from "multer";
 import { extname } from "path";
 import type { Multer } from "multer";
 import { User } from "@app/User/decorators/user.decorator";
-import { GetInsightsQueryDto } from "./types/getInsight.dto";
+import { GetInsightsQueryDto } from "./dto/getInsight.dto";
 
 @Controller("insights")
 export class InsightController {

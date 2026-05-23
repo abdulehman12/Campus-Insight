@@ -1,10 +1,11 @@
-import { Controller, Delete, Get, Param, Post } from "@nestjs/common";
+import { Controller, Delete, Get, Param, Post, Put, Body, UsePipes, ValidationPipe} from "@nestjs/common";
 import { Profile } from "passport";
 import { ProfileService } from "./profile.service";
 import { UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@app/User/guards/auth.guard";
 import { User } from "@app/User/decorators/user.decorator";
 import { ProfileResponseInterface } from "./types/profile.interface";
+import { EditProfileDto } from "./dto/editProfile.dto";
 @Controller("profile")
 export class ProfileController {
     constructor(
@@ -32,4 +33,13 @@ export class ProfileController {
         const unfollow = await this.profileService.unfollowUser(currentUserId, targetUsername);
         return this.profileService.buildProfileResponse(unfollow);
     }
+
+    @Put('edit-profile')
+    @UseGuards(AuthGuard)
+    @UsePipes(new ValidationPipe())
+    async editProfile(@User('id') userId:number, @Body() editProfileDto: EditProfileDto): Promise<ProfileResponseInterface> {
+        const profile = await this.profileService.editProfile(userId, editProfileDto);
+        return this.profileService.buildProfileResponse(profile);
+    }
+
 }
