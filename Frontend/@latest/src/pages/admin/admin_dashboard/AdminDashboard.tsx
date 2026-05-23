@@ -1,0 +1,953 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, NavLink, Outlet, Routes, Route } from 'react-router-dom';
+import {
+  LayoutDashboard, Users, FileText, ShieldAlert, Bell,
+  TrendingUp, Settings, LogOut, Search, Filter, RefreshCw,
+  CheckCircle, XCircle, Trash2, Eye, AlertCircle, ChevronRight,
+  UserCheck, UserX, Hash, Calendar, Award, Megaphone,
+  Newspaper, Dumbbell, Video, Image, MoreVertical, X,
+  ArrowUpRight, ArrowDownRight, Activity, Clock, Shield, EyeOff,
+} from 'lucide-react';
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+const BASE_URL = 'http://localhost:3000';
+const getToken = () => localStorage.getItem('adminToken') ?? '';
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getToken()}`,
+});
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface User {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
+  unit: string;
+  roll_no: number;
+  isVerified: boolean;
+  image: string;
+  createdAt?: string;
+}
+
+interface UnverifiedUser {
+  id: number;
+  email: string;
+  username: string;
+  mobile_no: string;
+  roll_no: number;
+  image: string;
+  isVerified: boolean;
+  otpCode: string;
+}
+
+interface Insight {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  author: { username: string; image: string };
+  tagList: string[];
+}
+
+interface Stats {
+  totalUsers: number;
+  totalInsights: number;
+  unverifiedUsers: number;
+  totalFollows: number;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+const avatarSrc = (image?: string, username?: string) => {
+  if (!image || image === 'default.png')
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(username ?? 'U')}&background=6366f1&color=fff&size=80&bold=true`;
+  if (!image.startsWith('http')) return `${BASE_URL}/uploads/profiles/${image}`;
+  return image;
+};
+
+const timeAgo = (iso?: string) => {
+  if (!iso) return '—';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+};
+
+const TYPE_META: Record<string, { color: string; bg: string; icon: React.ElementType }> = {
+  text:         { color: 'text-primary',    bg: 'bg-primary/10',    icon: Newspaper },
+  image:        { color: 'text-violet-500', bg: 'bg-violet-500/10', icon: Image },
+  video:        { color: 'text-pink-500',   bg: 'bg-pink-500/10',   icon: Video },
+  event:        { color: 'text-blue-500',   bg: 'bg-blue-500/10',   icon: Calendar },
+  announcement: { color: 'text-rose-500',   bg: 'bg-rose-500/10',   icon: Megaphone },
+  achievement:  { color: 'text-amber-500',  bg: 'bg-amber-500/10',  icon: Award },
+  sports:       { color: 'text-green-500',  bg: 'bg-green-500/10',  icon: Dumbbell },
+};
+
+// ── Skeleton ───────────────────────────────────────────────────────────────────
+const Skeleton = ({ className = '' }: { className?: string }) => (
+  <div className={`animate-pulse bg-on-surface/8 rounded-xl ${className}`} />
+);
+
+// ── Stat Card ──────────────────────────────────────────────────────────────────
+const StatCard = ({
+  label, value, icon: Icon, color, sub, trend,
+}: {
+  label: string; value: number | string; icon: React.ElementType;
+  color: string; sub?: string; trend?: 'up' | 'down';
+}) => (
+  <div className="rounded-3xl border border-outline-variant/10 bg-surface-lowest p-5 sm:p-6 flex flex-col gap-4 hover:shadow-lg transition-shadow duration-300">
+    <div className="flex items-start justify-between">
+      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>
+        <Icon size={20} />
+      </div>
+      {trend && (
+        <span className={`flex items-center gap-1 text-xs font-bold ${trend === 'up' ? 'text-green-500' : 'text-rose-500'}`}>
+          {trend === 'up' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+        </span>
+      )}
+    </div>
+    <div>
+      <p className="text-3xl font-black text-on-surface tabular-nums">{value}</p>
+      <p className="text-sm font-semibold text-on-surface-variant mt-0.5">{label}</p>
+      {sub && <p className="text-xs text-on-surface-variant/60 mt-1">{sub}</p>}
+    </div>
+  </div>
+);
+
+// ── Confirm Dialog ─────────────────────────────────────────────────────────────
+const ConfirmDialog = ({
+  message, onConfirm, onCancel, loading,
+}: { message: string; onConfirm: () => void; onCancel: () => void; loading: boolean }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+    <div className="relative bg-surface-lowest rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-outline-variant/10 animate-in zoom-in-95 duration-150">
+      <AlertCircle size={32} className="text-rose-500 mb-3" />
+      <p className="font-bold text-on-surface mb-1">Are you sure?</p>
+      <p className="text-sm text-on-surface-variant mb-5">{message}</p>
+      <div className="flex gap-3">
+        <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-surface-low text-on-surface-variant hover:bg-surface-low/80 transition-colors">
+          Cancel
+        </button>
+        <button onClick={onConfirm} disabled={loading} className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+          {loading && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// ── Overview Page ──────────────────────────────────────────────────────────────
+const OverviewPage = () => {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [recentUsers, setRecentUsers] = useState<User[]>([]);
+  const [recentInsights, setRecentInsights] = useState<Insight[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [usersRes, insightsRes, unverifiedRes] = await Promise.all([
+          fetch(`${BASE_URL}/admin/users`, { headers: authHeaders() }),
+          fetch(`${BASE_URL}/insights/feed`, { headers: authHeaders() }),
+          fetch(`${BASE_URL}/admin/unverified-students`, { headers: authHeaders() }),
+        ]);
+        const usersData = await usersRes.json();
+        const insightsData = await insightsRes.json();
+        const unverifiedData = await unverifiedRes.json();
+
+        const users: User[] = Array.isArray(usersData) ? usersData : usersData?.data ?? usersData?.users ?? [];
+        const insights: Insight[] = Array.isArray(insightsData) ? insightsData : insightsData?.data ?? [];
+        const unverified: UnverifiedUser[] = Array.isArray(unverifiedData) ? unverifiedData : [];
+
+        setStats({
+          totalUsers: users.length,
+          totalInsights: insights.length,
+          unverifiedUsers: unverified.length,
+          totalFollows: 0,
+        });
+        setRecentUsers(users.slice(0, 5));
+        setRecentInsights(insights.slice(0, 5));
+      } catch { /* ignore */ }
+      finally { setLoading(false); }
+    };
+    load();
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-serif font-black text-on-surface">Dashboard Overview</h1>
+        <p className="text-sm text-on-surface-variant mt-1">Welcome back, Admin. Here's what's happening.</p>
+      </div>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {loading ? (
+          [1,2,3,4].map(i => <Skeleton key={i} className="h-36 rounded-3xl" />)
+        ) : (
+          <>
+            <StatCard label="Total Users"       value={stats?.totalUsers ?? 0}       icon={Users}       color="bg-primary/10 text-primary"       trend="up" />
+            <StatCard label="Total Insights"    value={stats?.totalInsights ?? 0}    icon={FileText}    color="bg-violet-500/10 text-violet-500" trend="up" />
+            <StatCard label="Unverified Users"  value={stats?.unverifiedUsers ?? 0}  icon={ShieldAlert} color="bg-amber-500/10 text-amber-500"   sub="Pending verification" />
+            <StatCard label="Reported Content"  value={0}                            icon={AlertCircle} color="bg-rose-500/10 text-rose-500"     sub="Needs review" />
+          </>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Users */}
+        <div className="rounded-3xl border border-outline-variant/10 bg-surface-lowest p-5">
+          <h2 className="font-bold text-base text-on-surface mb-4 flex items-center gap-2">
+            <Users size={16} className="text-primary" /> Recent Users
+          </h2>
+          <div className="space-y-3">
+            {loading ? [1,2,3].map(i => <Skeleton key={i} className="h-12" />) :
+              recentUsers.map(user => (
+                <div key={user.id} className="flex items-center gap-3 p-2 rounded-2xl hover:bg-surface-low transition-colors">
+                  <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0">
+                    <img src={avatarSrc(user.image, user.username)} alt={user.username} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm text-on-surface truncate">@{user.username}</p>
+                    <p className="text-xs text-on-surface-variant truncate">{user.unit}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${user.isVerified ? 'bg-green-500/10 text-green-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                    {user.isVerified ? 'Verified' : 'Pending'}
+                  </span>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        {/* Recent Insights */}
+        <div className="rounded-3xl border border-outline-variant/10 bg-surface-lowest p-5">
+          <h2 className="font-bold text-base text-on-surface mb-4 flex items-center gap-2">
+            <FileText size={16} className="text-primary" /> Recent Insights
+          </h2>
+          <div className="space-y-3">
+            {loading ? [1,2,3].map(i => <Skeleton key={i} className="h-12" />) :
+              recentInsights.map(insight => {
+                const meta = TYPE_META[insight.type] ?? TYPE_META.text;
+                const Icon = meta.icon;
+                return (
+                  <div key={insight.id} className="flex items-center gap-3 p-2 rounded-2xl hover:bg-surface-low transition-colors">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${meta.bg}`}>
+                      <Icon size={16} className={meta.color} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-on-surface truncate">{insight.title}</p>
+                      <p className="text-xs text-on-surface-variant">@{insight.author?.username} · {timeAgo(insight.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              })
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Users Page ─────────────────────────────────────────────────────────────────
+const UsersPage = ({ unverifiedOnly = false }: { unverifiedOnly?: boolean }) => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [confirm, setConfirm] = useState<{ type: 'delete' | 'verify' | 'unverify'; userId: number } | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/admin/users`, { headers: authHeaders() });
+      const data = await res.json();
+      const list: User[] = Array.isArray(data) ? data : data?.data ?? data?.users ?? [];
+      setUsers(list);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const handleAction = async () => {
+    if (!confirm) return;
+    setActionLoading(true);
+    try {
+      if (confirm.type === 'delete') {
+        await fetch(`${BASE_URL}/admin/users/${confirm.userId}`, { method: 'DELETE', headers: authHeaders() });
+        setUsers(prev => prev.filter(u => u.id !== confirm.userId));
+      } else {
+        const verified = confirm.type === 'verify';
+        await fetch(`${BASE_URL}/admin/users/${confirm.userId}/verify`, {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify({ isVerified: verified }),
+        });
+        setUsers(prev => prev.map(u => u.id === confirm.userId ? { ...u, isVerified: verified } : u));
+      }
+    } catch { /* ignore */ }
+    finally { setActionLoading(false); setConfirm(null); }
+  };
+
+  const filtered = users.filter(u => {
+    const matchSearch = u.username.toLowerCase().includes(search.toLowerCase()) ||
+      u.email.toLowerCase().includes(search.toLowerCase());
+    const matchRole = roleFilter === 'all' || u.role === roleFilter;
+    const matchVerified = !unverifiedOnly || !u.isVerified;
+    return matchSearch && matchRole && matchVerified;
+  });
+
+  return (
+    <div className="space-y-5">
+      {confirm && (
+        <ConfirmDialog
+          message={
+            confirm.type === 'delete' ? 'This will permanently delete the user and all their data.'
+            : confirm.type === 'verify' ? 'This will manually verify the user.'
+            : 'This will revoke the user\'s verification.'
+          }
+          onConfirm={handleAction}
+          onCancel={() => setConfirm(null)}
+          loading={actionLoading}
+        />
+      )}
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-serif font-black text-on-surface">
+            {unverifiedOnly ? 'Unverified Users' : 'User Management'}
+          </h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">{filtered.length} users</p>
+        </div>
+        <button onClick={fetchUsers} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-low text-on-surface-variant text-sm font-semibold hover:bg-primary/10 hover:text-primary transition-colors self-start sm:self-auto">
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search users..."
+            className="w-full bg-surface-lowest border border-outline-variant/10 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20"
+          />
+        </div>
+        <select
+          value={roleFilter}
+          onChange={e => setRoleFilter(e.target.value)}
+          className="bg-surface-lowest border border-outline-variant/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20"
+        >
+          <option value="all">All Roles</option>
+          <option value="student">Students</option>
+          <option value="teacher">Teachers</option>
+          <option value="admin">Admins</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-3xl border border-outline-variant/10 bg-surface-lowest overflow-hidden">
+        {/* Header */}
+        <div className="hidden sm:grid grid-cols-12 gap-4 px-5 py-3 border-b border-outline-variant/10 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+          <div className="col-span-4">User</div>
+          <div className="col-span-3">Unit</div>
+          <div className="col-span-2">Role</div>
+          <div className="col-span-2">Status</div>
+          <div className="col-span-1 text-right">Actions</div>
+        </div>
+
+        {/* Rows */}
+        <div className="divide-y divide-outline-variant/10">
+          {loading ? (
+            [1,2,3,4,5].map(i => <Skeleton key={i} className="h-16 m-3 rounded-2xl" />)
+          ) : filtered.length === 0 ? (
+            <div className="py-16 text-center">
+              <Users size={28} className="text-on-surface-variant/40 mx-auto mb-2" />
+              <p className="text-sm text-on-surface-variant">No users found</p>
+            </div>
+          ) : filtered.map(user => (
+            <div key={user.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 px-4 sm:px-5 py-3 hover:bg-surface-low/50 transition-colors items-center">
+              {/* User */}
+              <div className="sm:col-span-4 flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 ring-2 ring-surface-low">
+                  <img src={avatarSrc(user.image, user.username)} alt={user.username} className="w-full h-full object-cover" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-sm text-on-surface truncate">@{user.username}</p>
+                  <p className="text-xs text-on-surface-variant truncate">{user.email}</p>
+                </div>
+              </div>
+              {/* Unit */}
+              <div className="sm:col-span-3 text-xs text-on-surface-variant truncate">{user.unit || '—'}</div>
+              {/* Role */}
+              <div className="sm:col-span-2">
+                <span className="text-xs font-bold capitalize px-2.5 py-1 rounded-full bg-primary/10 text-primary">{user.role}</span>
+              </div>
+              {/* Status */}
+              <div className="sm:col-span-2">
+                <span className={`flex items-center gap-1 text-xs font-bold w-fit px-2.5 py-1 rounded-full ${user.isVerified ? 'bg-green-500/10 text-green-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                  {user.isVerified ? <CheckCircle size={10} /> : <Clock size={10} />}
+                  {user.isVerified ? 'Verified' : 'Pending'}
+                </span>
+              </div>
+              {/* Actions */}
+              <div className="sm:col-span-1 flex items-center justify-end gap-1.5">
+                {!user.isVerified ? (
+                  <button
+                    onClick={() => setConfirm({ type: 'verify', userId: user.id })}
+                    title="Verify user"
+                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-green-500/10 text-green-600 hover:bg-green-500/20 transition-colors"
+                  >
+                    <UserCheck size={14} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setConfirm({ type: 'unverify', userId: user.id })}
+                    title="Revoke verification"
+                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-colors"
+                  >
+                    <UserX size={14} />
+                  </button>
+                )}
+                <button
+                  onClick={() => setConfirm({ type: 'delete', userId: user.id })}
+                  title="Delete user"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Content Moderation Page ────────────────────────────────────────────────────
+const ContentPage = () => {
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchInsights = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/insights/feed`, { headers: authHeaders() });
+      const data = await res.json();
+      const list: Insight[] = Array.isArray(data) ? data : data?.data ?? [];
+      setInsights(list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchInsights(); }, [fetchInsights]);
+
+  const handleDelete = async () => {
+    if (!confirm) return;
+    setActionLoading(true);
+    try {
+      await fetch(`${BASE_URL}/admin/insights/${confirm}`, { method: 'DELETE', headers: authHeaders() });
+      setInsights(prev => prev.filter(i => i.id !== confirm));
+    } catch { /* ignore */ }
+    finally { setActionLoading(false); setConfirm(null); }
+  };
+
+  const filtered = insights.filter(i => {
+    const matchSearch = i.title.toLowerCase().includes(search.toLowerCase()) ||
+      i.author?.username?.toLowerCase().includes(search.toLowerCase());
+    const matchType = typeFilter === 'all' || i.type === typeFilter;
+    return matchSearch && matchType;
+  });
+
+  return (
+    <div className="space-y-5">
+      {confirm && (
+        <ConfirmDialog
+          message="This will permanently delete this insight and cannot be undone."
+          onConfirm={handleDelete}
+          onCancel={() => setConfirm(null)}
+          loading={actionLoading}
+        />
+      )}
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-serif font-black text-on-surface">Content Moderation</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">{filtered.length} insights</p>
+        </div>
+        <button onClick={fetchInsights} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-low text-on-surface-variant text-sm font-semibold hover:bg-primary/10 hover:text-primary transition-colors self-start sm:self-auto">
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search insights..."
+            className="w-full bg-surface-lowest border border-outline-variant/10 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20"
+          />
+        </div>
+        <select
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+          className="bg-surface-lowest border border-outline-variant/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20"
+        >
+          <option value="all">All Types</option>
+          {Object.keys(TYPE_META).map(t => (
+            <option key={t} value={t} className="capitalize">{t}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Insights list */}
+      <div className="space-y-3">
+        {loading ? (
+          [1,2,3].map(i => <Skeleton key={i} className="h-24 rounded-3xl" />)
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center rounded-3xl border border-outline-variant/10 bg-surface-lowest">
+            <FileText size={28} className="text-on-surface-variant/40 mx-auto mb-2" />
+            <p className="text-sm text-on-surface-variant">No insights found</p>
+          </div>
+        ) : filtered.map(insight => {
+          const meta = TYPE_META[insight.type] ?? TYPE_META.text;
+          const Icon = meta.icon;
+          return (
+            <div key={insight.id} className="flex items-start gap-4 p-4 sm:p-5 rounded-3xl border border-outline-variant/10 bg-surface-lowest hover:border-primary/20 transition-all group">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${meta.bg}`}>
+                <Icon size={17} className={meta.color} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm text-on-surface truncate">{insight.title}</p>
+                    <p className="text-xs text-on-surface-variant mt-0.5">
+                      @{insight.author?.username} · {timeAgo(insight.createdAt)}
+                      {insight.tagList?.length > 0 && (
+                        <span className="ml-2 text-primary">#{insight.tagList[0]?.trim()}</span>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setConfirm(insight.id)}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-2 line-clamp-2 leading-relaxed">{insight.content}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+
+// ── Unverified Users Page ──────────────────────────────────────────────────────
+const UnverifiedUsersPage = () => {
+  const [users, setUsers]           = useState<UnverifiedUser[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState('');
+  const [showOtp, setShowOtp]       = useState<number | null>(null);
+  const [confirm, setConfirm]       = useState<{ type: 'verify' | 'delete'; userId: number } | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [copied, setCopied]         = useState<number | null>(null);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/admin/unverified-students`, { headers: authHeaders() });
+      const data = await res.json();
+      setUsers(Array.isArray(data) ? data : []);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const copyOtp = async (otp: string, id: number) => {
+    try {
+      await navigator.clipboard.writeText(otp);
+      setCopied(id);
+      setTimeout(() => setCopied(null), 2000);
+    } catch { /* ignore */ }
+  };
+
+  const handleAction = async () => {
+    if (!confirm) return;
+    setActionLoading(true);
+    try {
+      if (confirm.type === 'verify') {
+        await fetch(`${BASE_URL}/admin/users/${confirm.userId}/verify`, {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify({ isVerified: true }),
+        });
+      } else {
+        await fetch(`${BASE_URL}/admin/users/${confirm.userId}`, {
+          method: 'DELETE',
+          headers: authHeaders(),
+        });
+      }
+      setUsers(prev => prev.filter(u => u.id !== confirm.userId));
+    } catch { /* ignore */ }
+    finally { setActionLoading(false); setConfirm(null); }
+  };
+
+  const filtered = users.filter(u =>
+    u.username.toLowerCase().includes(search.toLowerCase()) ||
+    String(u.roll_no).includes(search)
+  );
+
+  return (
+    <div className="space-y-5">
+      {confirm && (
+        <ConfirmDialog
+          message={
+            confirm.type === 'verify'
+              ? 'Manually verify this user without OTP confirmation?'
+              : 'Delete this unverified user permanently?'
+          }
+          onConfirm={handleAction}
+          onCancel={() => setConfirm(null)}
+          loading={actionLoading}
+        />
+      )}
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-serif font-black text-on-surface">Unverified Students</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">
+            {filtered.length} student{filtered.length !== 1 ? 's' : ''} pending email verification
+          </p>
+        </div>
+        <button
+          onClick={fetchUsers}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-low text-on-surface-variant text-sm font-semibold hover:bg-primary/10 hover:text-primary transition-colors self-start sm:self-auto"
+        >
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </div>
+
+      {/* Info banner */}
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+        <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-bold text-amber-700">These users have registered but not verified their OTP.</p>
+          <p className="text-xs text-amber-600 mt-0.5">You can view their OTP code, manually verify, or delete their account.</p>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by username or roll no..."
+          className="w-full bg-surface-lowest border border-outline-variant/10 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20"
+        />
+      </div>
+
+      {/* Cards */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1,2,3].map(i => <Skeleton key={i} className="h-40 rounded-3xl" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="py-20 text-center rounded-3xl border border-dashed border-outline-variant/30 bg-surface-lowest">
+          <UserCheck size={32} className="text-green-500/50 mx-auto mb-3" />
+          <p className="font-bold text-on-surface">All students verified!</p>
+          <p className="text-sm text-on-surface-variant mt-1">No pending verifications found.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(user => (
+            <div
+              key={user.id}
+              className="rounded-3xl border border-outline-variant/10 bg-surface-lowest p-5 space-y-4 hover:border-amber-500/30 hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-300"
+            >
+              {/* User info */}
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-2xl overflow-hidden ring-2 ring-amber-500/20 shrink-0">
+                  <img
+                    src={avatarSrc(user.image, user.username)}
+                    alt={user.username}
+                    className="w-full h-full object-cover"
+                    onError={e => { (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=f59e0b&color=fff&size=80&bold=true`; }}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="font-bold text-sm text-on-surface truncate">@{user.username}</p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 shrink-0">
+                      Pending
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant truncate mt-0.5">{user.email}</p>
+                  <div className="flex items-center gap-3 mt-1">
+                    <p className="text-[11px] text-on-surface-variant">📞 {user.mobile_no || '—'}</p>
+                    <p className="text-[11px] text-on-surface-variant">🎓 {user.roll_no}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* OTP section */}
+              <div className="rounded-2xl bg-surface-low p-3 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">OTP Code</p>
+                <div className="flex items-center justify-between gap-2">
+                  {showOtp === user.id ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <div className="flex gap-1.5">
+                        {user.otpCode.split('').map((digit, i) => (
+                          <span
+                            key={i}
+                            className="w-7 h-9 bg-surface-lowest rounded-lg flex items-center justify-center font-black text-sm text-primary border border-primary/20"
+                          >
+                            {digit}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => copyOtp(user.otpCode, user.id)}
+                        className={`shrink-0 text-xs font-bold px-2 py-1 rounded-lg transition-colors ${
+                          copied === user.id
+                            ? 'bg-green-500/10 text-green-600'
+                            : 'bg-primary/10 text-primary hover:bg-primary/20'
+                        }`}
+                      >
+                        {copied === user.id ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-1">
+                      <div className="flex gap-1.5">
+                        {[1,2,3,4,5,6].map(i => (
+                          <span key={i} className="w-7 h-9 bg-surface-lowest rounded-lg flex items-center justify-center font-black text-sm text-on-surface-variant/30 border border-outline-variant/10">
+                            •
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowOtp(showOtp === user.id ? null : user.id)}
+                    className="shrink-0 text-xs font-bold text-on-surface-variant hover:text-primary transition-colors"
+                  >
+                    {showOtp === user.id ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirm({ type: 'verify', userId: user.id })}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold bg-green-500/10 text-green-600 hover:bg-green-500/20 transition-colors"
+                >
+                  <UserCheck size={13} /> Verify
+                </button>
+                <button
+                  onClick={() => setConfirm({ type: 'delete', userId: user.id })}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 transition-colors"
+                >
+                  <Trash2 size={13} /> Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Sidebar ────────────────────────────────────────────────────────────────────
+const sidebarItems = [
+  { icon: LayoutDashboard, label: 'Overview',         path: '/admin' },
+  { icon: Users,           label: 'All Users',        path: '/admin/users' },
+  { icon: ShieldAlert,     label: 'Unverified Users', path: '/admin/unverified' },
+  { icon: FileText,        label: 'Content',          path: '/admin/content' },
+  { icon: Activity,        label: 'Analytics',        path: '/admin/analytics' },
+  { icon: Settings,        label: 'Settings',         path: '/admin/settings' },
+];
+
+const Sidebar = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
+  const navigate = useNavigate();
+
+  const logout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    navigate('/admin/login');
+  };
+
+  return (
+    <>
+      {/* Mobile overlay */}
+      {open && <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} />}
+
+      <aside className={`fixed top-0 left-0 h-full w-64 bg-surface-lowest border-r border-outline-variant/10 z-50 flex flex-col transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-outline-variant/10">
+          <div className="w-9 h-9 academic-gradient rounded-xl flex items-center justify-center text-white shrink-0">
+            <Shield size={18} />
+          </div>
+          <div>
+            <p className="font-serif font-black text-base text-on-surface leading-tight">Admin</p>
+            <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Campus Insight</p>
+          </div>
+          <button onClick={onClose} className="ml-auto lg:hidden text-on-surface-variant hover:text-on-surface">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {sidebarItems.map(item => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === '/admin'}
+              onClick={onClose}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-200 ${
+                  isActive
+                    ? 'bg-primary text-white shadow-md shadow-primary/20'
+                    : 'text-on-surface-variant hover:bg-surface-low hover:text-on-surface'
+                }`
+              }
+            >
+              <item.icon size={17} />
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* Logout */}
+        <div className="px-3 py-4 border-t border-outline-variant/10">
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors"
+          >
+            <LogOut size={17} />
+            Log Out
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+};
+
+// ── Analytics Page (placeholder) ───────────────────────────────────────────────
+const AnalyticsPage = () => (
+  <div className="space-y-5">
+    <h1 className="text-2xl font-serif font-black text-on-surface">Analytics</h1>
+    <div className="rounded-3xl border border-dashed border-outline-variant/30 bg-surface-lowest p-16 text-center">
+      <TrendingUp size={32} className="text-on-surface-variant/40 mx-auto mb-3" />
+      <p className="font-bold text-on-surface">Analytics Coming Soon</p>
+      <p className="text-sm text-on-surface-variant mt-1">Charts and reports will appear here</p>
+    </div>
+  </div>
+);
+
+// ── Settings Page (placeholder) ────────────────────────────────────────────────
+const SettingsPage = () => (
+  <div className="space-y-5">
+    <h1 className="text-2xl font-serif font-black text-on-surface">Settings</h1>
+    <div className="rounded-3xl border border-dashed border-outline-variant/30 bg-surface-lowest p-16 text-center">
+      <Settings size={32} className="text-on-surface-variant/40 mx-auto mb-3" />
+      <p className="font-bold text-on-surface">Settings Coming Soon</p>
+      <p className="text-sm text-on-surface-variant mt-1">Admin configuration will appear here</p>
+    </div>
+  </div>
+);
+
+// ── Admin Layout ───────────────────────────────────────────────────────────────
+const AdminDashboard = () => {
+  const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) { navigate('/admin/login'); return; }
+  }, [navigate]);
+
+  return (
+    <div className="min-h-screen bg-surface flex">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar */}
+        <header className="h-16 bg-surface-lowest border-b border-outline-variant/10 flex items-center justify-between px-4 sm:px-6 shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-surface-low text-on-surface-variant hover:text-primary transition-colors"
+          >
+            <MoreVertical size={18} />
+          </button>
+
+          <div className="relative hidden sm:block">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+            <input
+              placeholder="Search anything..."
+              className="bg-surface-low border border-outline-variant/10 rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:ring-2 ring-primary/20 w-56"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 ml-auto">
+            <button className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface-low text-on-surface-variant hover:text-primary transition-colors relative">
+              <Bell size={16} />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full" />
+            </button>
+            <div className="w-8 h-8 rounded-xl overflow-hidden ring-2 ring-primary/20">
+              <img
+                src={avatarSrc(
+                  JSON.parse(localStorage.getItem('adminUser') ?? '{}')?.image,
+                  JSON.parse(localStorage.getItem('adminUser') ?? '{}')?.username ?? 'Admin'
+                )}
+                alt="Admin"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+          <Routes>
+            <Route index element={<OverviewPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="unverified" element={<UnverifiedUsersPage />} />
+            <Route path="content" element={<ContentPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Routes>
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default AdminDashboard;

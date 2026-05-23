@@ -20,16 +20,26 @@ export class InsightService {
         private readonly userRepository: Repository<UserEntity>,
     ) { }
 
-    async createInsight(createInsightDto: CreateInsightDto, file: Multer.File, userId: number): Promise<InsightEntity> {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
+    async createInsight(createInsightDto: CreateInsightDto, file: Multer.File, currentUser ): Promise<InsightEntity> {
+        const user = await this.userRepository.findOne({ where: { id: currentUser.id } });
+
+        if(currentUser.role === "admin"){
+            const insightData = {
+            ...createInsightDto,
+            mediaUrl: file ? file.filename : null,
+            authorId: currentUser.id,
+        };
+         const insight = this.insightRepository.create(insightData);
+        return this.insightRepository.save(insight);
+        }
         if (!user) {
             throw new Error('User not found');
         }
 
         const insightData = {
-            ...createInsightDto,
+            ...createInsightDto, 
             mediaUrl: file ? file.filename : null,
-            authorId: userId,
+            authorId: currentUser.id,
         };
         const insight = this.insightRepository.create(insightData);
         return this.insightRepository.save(insight);

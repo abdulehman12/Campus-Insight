@@ -15,16 +15,22 @@ export class AdminService {
 
   
 
-  async getAllStudents() {
+  async getAllStudents():Promise<UserEntity[]> {
     return await this.userRepository.find({
       where: { role: UserRole.STUDENT },
-      select: ['id', 'username', 'roll_no', 'isVerified', 'otpCode']
+      select: ['id', 'username', 'roll_no', 'isVerified', 'otpCode', "image", "mobile_no", "email"]
     });
   }
 
-  async getPendingApprovals() {
-    return await this.userRepository.find({
+  async getPendingApprovals(): Promise<UserEntity[]> {
+    const unverifiedStudents = await this.userRepository.find({
       where: { isVerified: false, role: UserRole.STUDENT },
+      select: ['id', 'username', 'roll_no', 'isVerified', 'otpCode', "image", "mobile_no", "email"]
     });
-  }
+    return unverifiedStudents;
+    }
+
+  
+    
+  
 }

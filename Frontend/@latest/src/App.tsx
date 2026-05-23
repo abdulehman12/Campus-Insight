@@ -9,6 +9,8 @@ import Login from './pages/auth/Login.tsx';
 import Register from './pages/auth/Register.tsx';
 import Example from './pages/profile/Example.tsx';
 import Verify from './pages/auth/Verify.tsx';
+import AdminLogin from './pages/auth/Adminlogin.tsx';
+import AdminDashboard from './pages/admin/admin_dashboard/Admindashboard.tsx';
 // Placeholder components for other pages
 const Placeholder = ({ title }: { title: string }) => (
   <div className="flex items-center justify-center min-h-[60vh] text-on-surface-variant italic font-serif text-2xl">
@@ -33,7 +35,8 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/help" element={<Help />} />
           <Route path="/create-post" element={<Placeholder title="New Insight" />} />
-          <Route path="/example" element={<Example />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/*" element={<AdminDashboard />} />
         </Route>
 
         {/* Standalone Auth Pages */}
