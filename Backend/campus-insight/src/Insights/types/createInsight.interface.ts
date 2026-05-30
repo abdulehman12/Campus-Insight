@@ -1,3 +1,3 @@
-import { InsightEntity } from "@app/Insights/insight.entity";
+import { InsightEntity } from "@app/Insights/entities/insight.entity";
 // createInsight.interface.ts
-export type CreateInsightResponse = InsightEntity;
+export type CreateInsightResponse = InsightEntity

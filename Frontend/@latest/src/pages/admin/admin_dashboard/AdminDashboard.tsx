@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, NavLink, Outlet, Routes, Route } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, FileText, ShieldAlert, Bell,
-  TrendingUp, Settings, LogOut, Search, Filter, RefreshCw,
+  LayoutDashboard, Users, FileText, ShieldAlert, Menu,
+  TrendingUp, Settings, LogOut, Search, RefreshCw,
   CheckCircle, XCircle, Trash2, Eye, AlertCircle, ChevronRight,
   UserCheck, UserX, Hash, Calendar, Award, Megaphone,
   Newspaper, Dumbbell, Video, Image, MoreVertical, X,
-  ArrowUpRight, ArrowDownRight, Activity, Clock, Shield, EyeOff,
+  ArrowUpRight, ArrowDownRight, Activity, Clock, Shield,  EyeOff, ArrowLeftRight,
 } from 'lucide-react';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -800,6 +800,7 @@ const Sidebar = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const logout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUser');
+    window.dispatchEvent(new Event('storage')); // remove shield from Header
     navigate('/admin/login');
   };
 
@@ -845,14 +846,48 @@ const Sidebar = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="px-3 py-4 border-t border-outline-variant/10">
+        {/* Bottom section */}
+        <div className="px-3 py-4 border-t border-outline-variant/10 space-y-2">
+
+          {/* Logged-in regular user info */}
+          {(() => {
+            try {
+              const u = JSON.parse(localStorage.getItem('user') ?? '{}');
+              if (u?.username) return (
+                <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-2xl bg-surface-low">
+                  <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0">
+                    <img
+                      src={avatarSrc(u.image, u.username)}
+                      alt={u.username}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-on-surface truncate">@{u.username}</p>
+                    <p className="text-[10px] text-on-surface-variant capitalize">{u.role}</p>
+                  </div>
+                </div>
+              );
+            } catch { /* ignore */ }
+            return null;
+          })()}
+
+          {/* Switch to User button */}
+          <button
+            onClick={() => navigate('/')}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
+          >
+            <ArrowLeftRight size={17} />
+            Switch to User View
+          </button>
+
+          {/* Admin logout */}
           <button
             onClick={logout}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors"
           >
             <LogOut size={17} />
-            Log Out
+            Exit Admin Panel
           </button>
         </div>
       </aside>
@@ -899,43 +934,16 @@ const AdminDashboard = () => {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <header className="h-16 bg-surface-lowest border-b border-outline-variant/10 flex items-center justify-between px-4 sm:px-6 shrink-0">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-surface-low text-on-surface-variant hover:text-primary transition-colors"
-          >
-            <MoreVertical size={18} />
-          </button>
-
-          <div className="relative hidden sm:block">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-            <input
-              placeholder="Search anything..."
-              className="bg-surface-low border border-outline-variant/10 rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:ring-2 ring-primary/20 w-56"
-            />
-          </div>
-
-          <div className="flex items-center gap-3 ml-auto">
-            <button className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface-low text-on-surface-variant hover:text-primary transition-colors relative">
-              <Bell size={16} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full" />
-            </button>
-            <div className="w-8 h-8 rounded-xl overflow-hidden ring-2 ring-primary/20">
-              <img
-                src={avatarSrc(
-                  JSON.parse(localStorage.getItem('adminUser') ?? '{}')?.image,
-                  JSON.parse(localStorage.getItem('adminUser') ?? '{}')?.username ?? 'Admin'
-                )}
-                alt="Admin"
-                className="w-full h-full object-cover"
-              />
-            </div>
-          </div>
-        </header>
+        {/* Mobile menu toggle — minimal floating button */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="lg:hidden fixed top-4 left-4 z-30 w-10 h-10 flex items-center justify-center rounded-xl bg-surface-lowest border border-outline-variant/10 shadow-lg text-on-surface-variant hover:text-primary transition-colors"
+        >
+          <Menu size={18} />
+        </button>
 
         {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-6 pt-16 lg:pt-6 overflow-y-auto">
           <Routes>
             <Route index element={<OverviewPage />} />
             <Route path="users" element={<UsersPage />} />

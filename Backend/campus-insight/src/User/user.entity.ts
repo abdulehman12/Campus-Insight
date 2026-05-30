@@ -1,9 +1,9 @@
 import { BeforeInsert, Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import * as bcrypt from 'bcrypt';
 import { UserRole } from "@app/types/userRole.type";
-import { InsightEntity } from "@app/Insights/insight.entity";
+import { InsightEntity } from "@app/Insights/entities/insight.entity";
 import { FollowUserEntity } from "@app/Profile/followUser.entity";
-
+import {InsightLike} from "@app/Insights/entities/Insight_like.entity"
 @Entity({
     name: 'users'
 })
@@ -62,6 +62,9 @@ export class UserEntity {
 
     @Column({default: false})
     following!: boolean
+
+    @OneToMany(() => InsightLike, (insightLike) => insightLike.user)
+    likedInsights!: InsightLike[];
 
     @BeforeInsert()
     async hashPassword() {

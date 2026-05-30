@@ -1,4 +1,4 @@
-import { InsightEntity } from "@app/Insights/insight.entity";
+import { InsightEntity } from "@app/Insights/entities/insight.entity";
 
 export interface ProfileResponseInterface {
     profile: {

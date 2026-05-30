@@ -17,6 +17,7 @@ import {
   Sun,
   Moon,
   Clapperboard,
+  Shield,
 } from 'lucide-react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme.ts';
@@ -66,11 +67,13 @@ const Header = () => {
         const raw = localStorage.getItem('user');
         setUser(raw ? JSON.parse(raw) : null);
       } catch { /* ignore */ }
+      setIsAdmin(!!localStorage.getItem('adminToken'));
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  const [isAdmin, setIsAdmin] = useState(!!localStorage.getItem('adminToken'));
   const profilePath = user?.username ? `/profile/${user.username}` : '/profile';
   const displayName = user?.username ?? 'Guest';
   const displaySub  = user?.unit ?? user?.role ?? '';
@@ -137,6 +140,17 @@ const Header = () => {
             className="w-full bg-surface-low/80 py-2 pl-9 pr-3 rounded-xl outline-none focus:ring-2 ring-primary/20 transition-all font-medium text-xs"
           />
         </div>
+
+        {/* Switch to Admin Panel — only shown if adminToken exists */}
+        {isAdmin && (
+          <button
+            onClick={() => navigate('/admin')}
+            title="Switch to Admin Panel"
+            className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 hover:bg-amber-500/20 transition-all shadow-sm"
+          >
+            <Shield size={18} />
+          </button>
+        )}
 
         {/* Theme Toggle */}
         <button

@@ -9,6 +9,14 @@ const BASE_URL = 'http://localhost:3000';
 const AdminLogin = () => {
   const navigate = useNavigate();
   const [form, setForm]           = useState({ email: '', password: '' });
+  const [regularUser, setRegularUser] = useState<{ username: string; image?: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (raw) setRegularUser(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, []);
   const [showPass, setShowPass]   = useState(false);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
@@ -59,6 +67,7 @@ const AdminLogin = () => {
 
       // Store admin token separately — never overwrites the regular user authToken
       localStorage.setItem('adminToken', adminUser.token);
+      window.dispatchEvent(new Event('storage')); // notify Header
       localStorage.setItem('adminUser', JSON.stringify({
         id:       adminUser.id,
         username: adminUser.username,
@@ -185,13 +194,29 @@ const AdminLogin = () => {
               )}
             </button>
 
-            {/* Back link */}
-            <p className="text-center text-xs text-on-surface-variant mt-2">
-              Not an admin?{' '}
-              <a href="/login" className="text-primary font-bold hover:underline">
-                Go to User Login
-              </a>
-            </p>
+            {/* Switch button */}
+            {regularUser ? (
+              <button
+                onClick={() => navigate('/')}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant bg-surface-low hover:bg-surface-low/80 transition-colors"
+              >
+                <div className="w-6 h-6 rounded-lg overflow-hidden ring-1 ring-outline-variant/20">
+                  <img
+                    src={!regularUser.image || regularUser.image === 'default.png'
+                      ? `https://ui-avatars.com/api/?name=${encodeURIComponent(regularUser.username)}&background=6366f1&color=fff&size=40&bold=true`
+                      : `http://localhost:3000/uploads/profiles/${regularUser.image}`}
+                    alt={regularUser.username}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                Switch to @{regularUser.username}
+              </button>
+            ) : (
+              <p className="text-center text-xs text-on-surface-variant">
+                Not registered?{' '}
+                <a href="/login" className="text-primary font-bold hover:underline">Go to User Login</a>
+              </p>
+            )}
           </div>
         </div>
 
