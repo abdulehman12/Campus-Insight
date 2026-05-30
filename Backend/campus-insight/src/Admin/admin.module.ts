@@ -5,11 +5,15 @@ import { UserModule } from '../User/user.module'; // Import UserModule
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from '../User/user.entity';
 import { AdminGuard } from './guards/admin.guard';
+import { InsightReportEntity } from '@app/Insights/entities/insight_report.entity';
+import { InsightEntity } from '@app/Insights/entities/insight.entity';
+import { InsightComment } from '@app/Insights/entities/insight_comment.entity';
+import { InsightLike } from '@app/Insights/entities/Insight_like.entity';
 
 @Module({
   imports: [
     UserModule, // Gives access to UserService
-    TypeOrmModule.forFeature([UserEntity]), // Gives access to User Repository
+    TypeOrmModule.forFeature([UserEntity, InsightReportEntity, InsightEntity, InsightComment, InsightLike]), // Gives access to User Repository
   ],
   controllers: [AdminController],
   providers: [AdminService, AdminGuard],
