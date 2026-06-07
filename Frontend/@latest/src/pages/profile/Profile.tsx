@@ -4,7 +4,7 @@ import {
   Globe, MapPin, BookOpen, Award, TrendingUp, Users, UserCheck,
   AlertCircle, RefreshCw, Hash, Phone, Shield, GraduationCap,
   UserPlus, UserMinus, Edit3, Share2, Clock, Image, Video, Heart, MessageCircle,
-  Calendar, Megaphone, Trophy, Newspaper, Dumbbell, Tag, Camera, X, Check, Loader2, User,
+  Calendar, Megaphone, Trophy, Newspaper, Dumbbell, Tag,  X, Check, Loader2, User,
   Link2, Copy, QrCode,
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
