@@ -6,7 +6,7 @@ import {
   CheckCircle, Trash2, AlertCircle, Hash, Calendar, Award, Megaphone,
   Newspaper, Dumbbell, Video, Image, X, UserCheck, UserX,
   ArrowUpRight, ArrowDownRight, Activity, Clock, Shield, Eye, EyeOff,
-  ArrowLeftRight, Star, Filter,
+  ArrowLeftRight, Star,
 } from 'lucide-react';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -56,6 +56,14 @@ interface Insight {
 interface DashboardStats {
   totalStudents: number;
   pendingVerification: number;
+}
+
+interface AnalyticsData {
+  generatedAt?: string;
+  platformOverview?: Record<string, number>;
+  engagementMetrics?: Record<string, number>;
+  contentDistribution?: Record<string, number>;
+  trendingTags?: { tag: string; count: number }[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -762,9 +770,9 @@ const ReportedContentPage = () => {
 
 // ── Analytics Page ─────────────────────────────────────────────────────────────
 const AnalyticsPage = () => {
-  const [data, setData]   = useState<Record<string, unknown> | null>(null);
+  const [data, setData]       = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError]     = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -792,15 +800,18 @@ const AnalyticsPage = () => {
         <div className="space-y-6">
           {data.generatedAt && (
             <p className="text-xs text-on-surface-variant flex items-center gap-1.5">
-              <Clock size={11} /> Last updated: {new Date(String(data.generatedAt)).toLocaleString()}
+              <Clock size={11} /> Last updated: {new Date(data.generatedAt).toLocaleString()}
             </p>
           )}
+
           {/* Platform Overview */}
           {data.platformOverview && (
             <div className="space-y-3">
-              <h2 className="text-base font-bold text-on-surface flex items-center gap-2"><Activity size={16} className="text-primary" /> Platform Overview</h2>
+              <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+                <Activity size={16} className="text-primary" /> Platform Overview
+              </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {Object.entries((data.platformOverview as unknown) as Record<string, number>).map(([key, value]) => (
+                {Object.entries(data.platformOverview).map(([key, value]) => (
                   <div key={key} className="rounded-2xl border border-outline-variant/10 bg-surface-lowest p-4 hover:shadow-md transition-shadow">
                     <p className="text-2xl font-black text-on-surface tabular-nums">{value.toLocaleString()}</p>
                     <p className="text-xs font-semibold text-on-surface-variant mt-1 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
@@ -809,50 +820,65 @@ const AnalyticsPage = () => {
               </div>
             </div>
           )}
+
           {/* Engagement Metrics */}
           {data.engagementMetrics && (
             <div className="space-y-3">
-              <h2 className="text-base font-bold text-on-surface flex items-center gap-2"><TrendingUp size={16} className="text-green-500" /> Engagement Metrics</h2>
+              <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+                <TrendingUp size={16} className="text-green-500" /> Engagement Metrics
+              </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {Object.entries((data.engagementMetrics as unknown) as Record<string, number>).map(([key, value]) => (
+                {Object.entries(data.engagementMetrics).map(([key, value]) => (
                   <div key={key} className="rounded-2xl border border-outline-variant/10 bg-surface-lowest p-4 hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-on-surface tabular-nums">{Number(value).toFixed(2)}</p>
+                    <p className="text-2xl font-black text-on-surface tabular-nums">{value.toFixed(2)}</p>
                     <p className="text-xs font-semibold text-on-surface-variant mt-1 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
           {/* Content Distribution */}
           {data.contentDistribution && (
             <div className="space-y-3">
-              <h2 className="text-base font-bold text-on-surface flex items-center gap-2"><FileText size={16} className="text-violet-500" /> Content Distribution</h2>
+              <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+                <FileText size={16} className="text-violet-500" /> Content Distribution
+              </h2>
               <div className="rounded-3xl border border-outline-variant/10 bg-surface-lowest p-5 space-y-3">
-                {Object.entries((data.contentDistribution as unknown) as Record<string, number>).map(([type, count]) => {
-                  const total = Object.values((data.contentDistribution as unknown) as Record<string, number>).reduce((a, b) => a + b, 0);
-                  const pct   = total > 0 ? Math.round((count / total) * 100) : 0;
-                  const bars: Record<string, string> = { text: 'bg-primary', image: 'bg-violet-500', video: 'bg-pink-500', event: 'bg-blue-500', announcement: 'bg-rose-500', achievement: 'bg-amber-500', sports: 'bg-green-500' };
-                  return (
-                    <div key={type}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-semibold text-on-surface capitalize">{type}</span>
-                        <span className="text-xs text-on-surface-variant tabular-nums">{count} ({pct}%)</span>
+                {(() => {
+                  const dist = data.contentDistribution!;
+                  const total = Object.values(dist).reduce((a, b) => a + b, 0);
+                  const bars: Record<string, string> = {
+                    text: 'bg-primary', image: 'bg-violet-500', video: 'bg-pink-500',
+                    event: 'bg-blue-500', announcement: 'bg-rose-500', achievement: 'bg-amber-500', sports: 'bg-green-500',
+                  };
+                  return Object.entries(dist).map(([type, count]) => {
+                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                    return (
+                      <div key={type}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-semibold text-on-surface capitalize">{type}</span>
+                          <span className="text-xs text-on-surface-variant tabular-nums">{count} ({pct}%)</span>
+                        </div>
+                        <div className="w-full bg-surface-low rounded-full h-2 overflow-hidden">
+                          <div className={`h-full rounded-full ${bars[type] ?? 'bg-primary'} transition-all duration-700`} style={{ width: `${pct}%` }} />
+                        </div>
                       </div>
-                      <div className="w-full bg-surface-low rounded-full h-2 overflow-hidden">
-                        <div className={`h-full rounded-full ${bars[type] ?? 'bg-primary'} transition-all duration-700`} style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}
+
           {/* Trending Tags */}
-          {Array.isArray(data.trendingTags) && (
+          {data.trendingTags && data.trendingTags.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-base font-bold text-on-surface flex items-center gap-2"><Hash size={16} className="text-amber-500" /> Trending Tags</h2>
+              <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+                <Hash size={16} className="text-amber-500" /> Trending Tags
+              </h2>
               <div className="flex flex-wrap gap-2">
-                {(data.trendingTags as unknown as { tag: string; count: number }[]).map(({ tag, count }) => (
+                {data.trendingTags.map(({ tag, count }) => (
                   <span key={tag} className="flex items-center gap-2 bg-amber-500/10 text-amber-600 font-bold text-sm px-4 py-2 rounded-full">
                     #{tag} <span className="text-xs opacity-70">({count})</span>
                   </span>
