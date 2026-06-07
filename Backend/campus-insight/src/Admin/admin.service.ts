@@ -79,88 +79,103 @@ export class AdminService {
   }
 
   async getAdminAnalytics() {
-    // 1. Run global counts in parallel for optimal speed
-    const [totalInsights, totalUsers, totalComments, totalLikes, totalReports] = await Promise.all([
-      this.insightRepository.count(),
-      this.userRepository.count(),
-      this.commentRepository.count(),
-      this.likeRepository.count(),
-      this.insightReportRepository.count(),
-    ]);
+  // 1. Run global counts in parallel for optimal speed
+  const [totalInsights, totalUsers, totalComments, totalLikes, totalReports] = await Promise.all([
+    this.insightRepository.count(),
+    this.userRepository.count(),
+    this.commentRepository.count(),
+    this.likeRepository.count(),
+    this.insightReportRepository.count(),
+  ]);
 
-    // 2. Calculate engagement ratios safely
-    const avgLikesPerInsight = totalInsights > 0 ? parseFloat((totalLikes / totalInsights).toFixed(2)) : 0;
-    const avgCommentsPerInsight = totalInsights > 0 ? parseFloat((totalComments / totalInsights).toFixed(2)) : 0;
+  // 2. Calculate engagement ratios safely
+  const avgLikesPerInsight = totalInsights > 0 ? parseFloat((totalLikes / totalInsights).toFixed(2)) : 0;
+  const avgCommentsPerInsight = totalInsights > 0 ? parseFloat((totalComments / totalInsights).toFixed(2)) : 0;
 
-    // 3. Aggregate posts count grouped by InsightType
-    const typeBreakdownRaw = await this.insightRepository
-      .createQueryBuilder('insight')
-      .select('insight.type', 'type')
-      .addSelect('COUNT(insight.id)', 'count')
-      .groupBy('insight.type')
-      .getRawMany();
+  // 3. Aggregate posts count grouped by InsightType
+  const typeBreakdownRaw = await this.insightRepository
+    .createQueryBuilder('insight')
+    .select('insight.type', 'type')
+    .addSelect('COUNT(insight.id)', 'count')
+    .groupBy('insight.type')
+    .getRawMany();
 
-    const typeBreakdown = typeBreakdownRaw.reduce((acc, current) => {
-      acc[current.type] = parseInt(current.count, 10);
-      return acc;
-    }, {} as Record<string, number>);
+  const typeBreakdown = typeBreakdownRaw.reduce((acc, current) => {
+    acc[current.type] = parseInt(current.count, 10);
+    return acc;
+  }, {} as Record<string, number>);
 
-    // 4. Track repost metrics
-    const totalReposts = await this.insightRepository.count({
-      where: { parentInsightId: Not(IsNull()) }
-    });
-    const originalInsights = totalInsights - totalReposts;
+  // 4. Track repost metrics
+  const totalReposts = await this.insightRepository.count({
+    where: { parentInsightId: Not(IsNull()) }
+  });
+  const originalInsights = totalInsights - totalReposts;
 
-    // 5. 🔥 NEW: Extract and rank Trending Tags (Top 5)
-    // This splits the comma-separated string, trims spacing, ranks them by total usage
-    const trendingTagsRaw = await this.insightRepository.query(`
-           SELECT 
-        TRIM(LOWER(unnested_tag)) as tag, 
-        COUNT(*) as count 
+  // 5. 🔥 FIXED: Extract and rank Trending Tags (Top 5) using PostgreSQL UNNEST
+  // This turns native PostgreSQL arrays into rows, groups them, and ranks them by popularity.
+  const trendingTagsRaw = await this.insightRepository.query(`
+    SELECT 
+      LOWER(TRIM(tag)) AS tag, 
+      COUNT(*)::int AS count
     FROM 
-        insights, 
-        UNNEST(string_to_array(insights."tagList", ',')) AS unnested_tag
+      insights,
+      UNNEST("tagList") AS tag
     WHERE 
-        insights."tagList" IS NOT NULL AND insights."tagList" != ''
+      "tagList" IS NOT NULL
     GROUP BY 
-        tag
+      LOWER(TRIM(tag))
     ORDER BY 
-        count DESC
-    LIMIT 5
-        `);
+      count DESC
+    LIMIT 5;
+  `);
 
-    // Format the raw tags database result to a clean, readable structure
-    const trendingTags = trendingTagsRaw.map((row: any) => ({
-      tag: row.tag,
-      count: parseInt(row.count, 10)
-    }));
+  // Map the database raw output safely matching the exact columns selected above ('tag' and 'count')
+  const trendingTags = trendingTagsRaw.map((row: any) => ({
+    tag: row.tag,
+    count: row.count
+  }));
 
-    // 6. Return combined dashboard data structure
-    return {
-      generatedAt: new Date(),
-      platformOverview: {
-        totalUsers,
-        totalInsights,
-        originalInsights,
-        totalReposts,
-        totalComments,
-        totalLikes,
-        activeReportsQueue: totalReports,
-      },
-      engagementMetrics: {
-        avgLikesPerInsight,
-        avgCommentsPerInsight,
-        interactionRatio: totalUsers > 0 ? parseFloat(((totalLikes + totalComments) / totalUsers).toFixed(2)) : 0
-      },
-      contentDistribution: typeBreakdown,
-      trendingTags // Now included directly in your admin output payload!
-    };
+  // 6. Return combined dashboard data structure
+  return {
+    generatedAt: new Date(),
+    platformOverview: {
+      totalUsers,
+      totalInsights,
+      originalInsights,
+      totalReposts,
+      totalComments,
+      totalLikes,
+      activeReportsQueue: totalReports,
+    },
+    engagementMetrics: {
+      avgLikesPerInsight,
+      avgCommentsPerInsight,
+      interactionRatio: totalUsers > 0 ? parseFloat(((totalLikes + totalComments) / totalUsers).toFixed(2)) : 0
+    },
+    contentDistribution: typeBreakdown,
+    trendingTags // Successfully outputs a clean array of [{ tag: "important", count: X }]
+  };
+}
+
+  async getUsers() {
+    return await this.userRepository.find({
+      relations: ['followingRelations'],
+      select: ['id', 'username', 'roll_no', 'isVerified', 'otpCode', "image", "mobile_no", "email",]
+    });
   }
 
 
+  async promoteToAdmin(userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
 
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
 
-
+    user.role = UserRole.ADMIN;
+    await this.userRepository.save(user);
+    return user;
+  }
 
 
 

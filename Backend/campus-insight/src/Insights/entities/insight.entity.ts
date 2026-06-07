@@ -33,7 +33,7 @@ export class InsightEntity {
     @Column({ type: 'varchar', nullable: true })
     awardDetail!: string;
 
-    @Column('simple-array')
+@Column('text', { array: true, default: '{}' })
     tagList!: string[];
 
     @CreateDateColumn()

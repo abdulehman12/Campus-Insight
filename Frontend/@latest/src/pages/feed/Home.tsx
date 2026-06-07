@@ -295,52 +295,181 @@ const EditInsightModal = ({
   insight,
   onClose,
   onSuccess,
-}: { insight: Insight; onClose: () => void; onSuccess: (updated: Insight) => void }) => {
-  const [title, setTitle]     = useState(insight.title);
-  const [content, setContent] = useState(insight.content ?? '');
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
+}: { insight: any; onClose: () => void; onSuccess: (updated: any) => void }) => {
+  const [title, setTitle]         = useState(insight.title);
+  const [content, setContent]     = useState(insight.content ?? '');
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
 
-  const submit = async () => {
-    if (!title.trim()) { setError('Title is required.'); return; }
-    setLoading(true); setError('');
-    try {
-      const res = await fetch(`${API_BASE}/insights/${insight.id}/edit-insight`, {
-        method: 'PUT',
-        headers: authHeaders(),
-        body: JSON.stringify({ title: title.trim(), content: content.trim() }),
-      });
-      if (!res.ok) throw new Error('Failed to update insight.');
-      const data = await res.json();
-      onSuccess({ ...insight, ...data });
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
-    } finally { setLoading(false); }
-  };
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Determine if this insight type supports media
+  const isMediaType = insight.type === 'image' || insight.type === 'video';
+
+  const submit = async (e: React.FormEvent | React.MouseEvent) => {
+  e.preventDefault();
+  if (!title.trim()) { setError('Title is required.'); return; }
+  setLoading(true);
+  setError('');
+
+  try {
+   const formData = new FormData();
+formData.append('title', title.trim());
+formData.append('content', content.trim());
+formData.append('type', insight.type);   // ← add this line
+if (mediaFile) {
+  formData.append('image', mediaFile);
+}
+
+    console.log('Token:', getToken());          // ← verify token exists
+    console.log('URL:', `${API_BASE}/insights/${insight.id}/edit-insight`);
+    for (const [k, v] of formData.entries()) {  // ← verify formData fields
+      console.log(k, v);
+    }
+
+    const res = await fetch(`${API_BASE}/insights/${insight.id}/edit-insight`, {
+      method: 'PUT',
+      headers: {
+        // ONLY Authorization — no Content-Type at all
+        'Authorization': `Bearer ${getToken()}`,
+      },
+      body: formData,
+    });
+
+    console.log('Status:', res.status);         // ← see what backend returns
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      console.error('Error body:', errBody);
+      throw new Error(errBody?.message ?? 'Failed to update insight.');
+    }
+
+    const data = await res.json();
+    onSuccess({ ...insight, ...data });
+    onClose();
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Something went wrong.');
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md bg-surface-lowest rounded-3xl shadow-2xl border border-outline-variant/10 p-6 animate-in zoom-in-95 duration-200">
+
+        {/* Header */}
         <div className="flex items-center justify-between mb-5">
-          <h3 className="font-bold text-on-surface flex items-center gap-2"><Edit3 size={16} className="text-primary" /> Edit Insight</h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-surface-low text-on-surface-variant transition-colors"><X size={15} /></button>
+          <h3 className="font-bold text-on-surface flex items-center gap-2">
+            <Edit3 size={16} className="text-primary" /> Edit Insight
+          </h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-surface-low text-on-surface-variant transition-colors">
+            <X size={15} />
+          </button>
         </div>
-        {error && <p className="text-xs text-rose-500 mb-3 flex items-center gap-1"><AlertCircle size={12} />{error}</p>}
+
+        {/* Error */}
+        {error && (
+          <p className="text-xs text-rose-500 mb-3 flex items-center gap-1">
+            <AlertCircle size={12} />{error}
+          </p>
+        )}
+
         <div className="space-y-4">
+          {/* Title */}
           <div>
             <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-1.5">Title</label>
-            <input value={title} onChange={e => setTitle(e.target.value)} className="w-full bg-surface-low border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20" />
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="w-full bg-surface-low border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20"
+            />
           </div>
+
+          {/* Content */}
           <div>
             <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-1.5">Content</label>
-            <textarea value={content} onChange={e => setContent(e.target.value)} rows={4} className="w-full bg-surface-low border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 resize-none" />
+            <textarea
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              rows={4}
+              className="w-full bg-surface-low border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 resize-none"
+            />
           </div>
+
+          {/* Media upload — only shown for image or video insight types */}
+          {isMediaType && (
+            <div>
+              <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-1.5">
+                Change {insight.type === 'video' ? 'Video' : 'Image'}{' '}
+                <span className="text-on-surface-variant font-normal normal-case">(optional)</span>
+              </label>
+              <input
+                type="file"
+                ref={fileInputRef}
+                // Accept only the relevant file type based on insight type
+                accept={insight.type === 'video' ? 'video/*' : 'image/*'}
+                onChange={e => setMediaFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 border border-dashed border-outline-variant/30 hover:border-primary/50 rounded-xl p-3 text-xs font-medium text-on-surface-variant bg-surface-low/50 hover:bg-surface-low transition-all"
+              >
+                {mediaFile ? (
+                  <span className="text-primary font-semibold truncate max-w-[90%]">
+                    📎 {mediaFile.name}
+                  </span>
+                ) : insight.type === 'video' ? (
+                  <>
+                    <Video size={14} className="text-on-surface-variant/70" />
+                    <span>Upload replacement Video</span>
+                  </>
+                ) : (
+                  <>
+                    <Image size={14} className="text-on-surface-variant/70" />
+                    <span>Upload replacement Image</span>
+                  </>
+                )}
+              </button>
+
+              {/* Preview of existing media if no new file selected */}
+              {!mediaFile && insight.mediaUrl && (
+                <div className="mt-2 rounded-xl overflow-hidden border border-outline-variant/10 max-h-32">
+                  {insight.type === 'video' ? (
+                    <video
+                      src={buildMediaSrc(insight.mediaUrl)!}
+                      className="w-full max-h-32 object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={buildMediaSrc(insight.mediaUrl)!}
+                      alt="Current media"
+                      className="w-full max-h-32 object-cover"
+                    />
+                  )}
+                  <p className="text-[10px] text-on-surface-variant text-center py-1 bg-surface-low">Current media — upload above to replace</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-surface-low text-on-surface-variant hover:bg-surface-low/80 transition-colors">Cancel</button>
-          <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+
+        {/* Actions */}
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-surface-low text-on-surface-variant hover:bg-surface-low/80 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+          >
             {loading ? <><Loader2 size={14} className="animate-spin" />Saving…</> : <><Check size={14} />Save</>}
           </button>
         </div>
@@ -360,18 +489,18 @@ const InsightCard = ({
   onTagClick: (tag: string) => void;
   onDelete: (id: string) => void;
 }) => {
-  const [insight, setInsight]         = useState(initialInsight);
-  const [showComments, setShowComments] = useState(false);
-  const [commentText, setCommentText] = useState('');
+  const [insight, setInsight]               = useState(initialInsight);
+  const [showComments, setShowComments]     = useState(false);
+  const [commentText, setCommentText]       = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
-  const [likeLoading, setLikeLoading] = useState(false);
+  const [likeLoading, setLikeLoading]       = useState(false);
   const [editingComment, setEditingComment] = useState<number | null>(null);
   const [editCommentText, setEditCommentText] = useState('');
-  const [showMenu, setShowMenu]       = useState(false);
-  const [showReport, setShowReport]   = useState(false);
-  const [showRepost, setShowRepost]   = useState(false);
-  const [showEdit, setShowEdit]       = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showMenu, setShowMenu]             = useState(false);
+  const [showReport, setShowReport]         = useState(false);
+  const [showRepost, setShowRepost]         = useState(false);
+  const [showEdit, setShowEdit]             = useState(false);
+  const [deleteLoading, setDeleteLoading]   = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const currentUser = getUser();
@@ -492,6 +621,32 @@ const InsightCard = ({
     finally { setDeleteLoading(false); setShowMenu(false); }
   };
 
+  // ── Media renderer — FIX: render <video> for video-type insights ──────────────
+  const renderMedia = () => {
+    const src = buildMediaSrc(insight.mediaUrl);
+    if (!src) return null;
+
+    return (
+      <div className="mt-3 rounded-2xl overflow-hidden bg-surface-low">
+        {insight.type === 'video' ? (
+          <video
+            src={src}
+            controls
+            className="w-full max-h-72 rounded-2xl"
+            onError={e => { (e.currentTarget as HTMLVideoElement).style.display = 'none'; }}
+          />
+        ) : (
+          <img
+            src={src}
+            alt={insight.title}
+            className="w-full object-cover max-h-72"
+            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+          />
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       {showReport && <ReportModal insightId={insight.id} onClose={() => setShowReport(false)} />}
@@ -499,7 +654,7 @@ const InsightCard = ({
         <RepostModal
           insight={insight}
           onClose={() => setShowRepost(false)}
-          onSuccess={newInsight => setInsight(prev => ({ ...prev, repostsCount: prev.repostsCount + 1 }))}
+          onSuccess={() => setInsight(prev => ({ ...prev, repostsCount: prev.repostsCount + 1 }))}
         />
       )}
       {showEdit && (
@@ -617,17 +772,8 @@ const InsightCard = ({
             </>
           )}
 
-          {/* Media */}
-          {insight.mediaUrl && (
-            <div className="mt-3 rounded-2xl overflow-hidden bg-surface-low max-h-72">
-              <img
-                src={buildMediaSrc(insight.mediaUrl)!}
-                alt={insight.title}
-                className="w-full object-cover"
-                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-              />
-            </div>
-          )}
+          {/* Media — FIX: uses renderMedia() which handles both image and video types */}
+          {renderMedia()}
 
           {/* Event extras */}
           {insight.type === 'event' && (insight.location || insight.eventDate) && (
@@ -919,10 +1065,10 @@ const Home = () => {
     }
   }, [location.search, fetchFeed]);
 
-  const handleTagClick    = (tag: string) => { const next = activeTag === tag ? '' : tag; setActiveTag(next); fetchFeed(next, activeType); };
-  const handleTypeFilter  = (type: string) => { const next = activeType === type ? '' : type; setActiveType(next); fetchFeed(activeTag, next); };
-  const handleClearTag    = () => { setActiveTag(''); fetchFeed('', activeType); };
-  const handleClearAll    = () => { setActiveTag(''); setActiveType(''); fetchFeed('', ''); };
+  const handleTagClick      = (tag: string)  => { const next = activeTag === tag ? '' : tag; setActiveTag(next); fetchFeed(next, activeType); };
+  const handleTypeFilter    = (type: string) => { const next = activeType === type ? '' : type; setActiveType(next); fetchFeed(activeTag, next); };
+  const handleClearTag      = () => { setActiveTag(''); fetchFeed('', activeType); };
+  const handleClearAll      = () => { setActiveTag(''); setActiveType(''); fetchFeed('', ''); };
   const handleDeleteInsight = (id: string) => setInsights(prev => prev.filter(i => i.id !== id));
 
   const activeFilterCount = [activeTag, activeType].filter(Boolean).length;
@@ -973,7 +1119,7 @@ const Home = () => {
           )}
 
           {feedState === 'loading' && <div className="space-y-5">{[1,2,3].map(i => <SkeletonCard key={i} />)}</div>}
-          {feedState === 'error' && <FeedError message={feedError} onRetry={() => fetchFeed(activeTag, activeType)} />}
+          {feedState === 'error'   && <FeedError message={feedError} onRetry={() => fetchFeed(activeTag, activeType)} />}
           {feedState === 'success' && insights.length === 0 && <EmptyFeed activeTag={activeTag} onClear={handleClearTag} />}
           {feedState === 'success' && insights.length > 0 && (
             <div className="space-y-5">
@@ -992,9 +1138,11 @@ const Home = () => {
           <div className="space-y-3">
             <h3 className="px-1 text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5"><TrendingUp size={13} /> Trending</h3>
             <div className="rounded-3xl bg-surface-lowest p-2 border border-outline-variant/10 space-y-1">
-              {[{ label: 'Sustainable Lab Practices', count: '2.4k', tag: 'sustainability' },
-                { label: 'AI in Humanities', count: '1.8k', tag: 'ai' },
-                { label: 'Chess State Finals', count: '1.2k', tag: 'chess' }].map((t, i) => (
+              {[
+                { label: 'Sustainable Lab Practices', count: '2.4k', tag: 'sustainability' },
+                { label: 'AI in Humanities',          count: '1.8k', tag: 'ai' },
+                { label: 'Chess State Finals',        count: '1.2k', tag: 'chess' },
+              ].map((t, i) => (
                 <button key={i} onClick={() => handleTagClick(t.tag)} className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-surface-low transition-all text-left group">
                   <div>
                     <p className="font-bold text-sm text-on-surface group-hover:text-primary transition-colors">{t.label}</p>

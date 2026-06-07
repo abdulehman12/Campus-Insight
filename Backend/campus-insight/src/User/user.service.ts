@@ -123,6 +123,7 @@ export class UserService {
             email: user.email,   
             role: user.role
     }, this.configService.get<string>('JWT_SECRET')!);
+    
     }
     buildUserResponse(user: any): UserResponseInterface {
         return {

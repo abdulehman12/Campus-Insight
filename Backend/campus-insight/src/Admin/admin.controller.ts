@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards, Patch,  } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { UserLoginDto } from '@app/User/dto/userLogin.dto';
 import { UserResponseInterface } from '@app/User/types/userResonse.interface';
@@ -47,5 +47,18 @@ export class AdminController {
   @UseGuards(AdminGuard)
   async getAnalytics() {
     return await this.adminService.getAdminAnalytics();
+  }
+
+  @Get('Users')
+  @UseGuards(AdminGuard)
+  async getUsers() {
+    return await this.adminService.getUsers();
+  }
+
+  @Patch('promote/:id')
+  @UseGuards(AdminGuard)
+   // Ensure only admins can access this
+  async promoteUser(@Param('id') userId: number) {
+    return await this.adminService.promoteToAdmin(userId);
   }
 }

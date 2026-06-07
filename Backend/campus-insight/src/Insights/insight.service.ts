@@ -14,11 +14,13 @@ import { CreateCommentDto } from "@app/Insights/dto/createComment.dto"
 import { RepostDto } from "./dto/repost.dto";
 import { CreateReportDto } from "./dto/reportInsight.dto";
 import { InsightReportEntity } from "./entities/insight_report.entity";
-
-
+import { AIProcessorService } from "@app/Insights/aiProcessor.service";
+import { Logger } from "@nestjs/common";
 
 @Injectable()
 export class InsightService {
+
+     private readonly logger = new Logger(AIProcessorService.name)
     constructor(
         @InjectRepository(InsightEntity)
         private readonly insightRepository: Repository<InsightEntity>,
@@ -34,57 +36,123 @@ export class InsightService {
         private readonly commentRepository: Repository<InsightComment>,
 
         @InjectRepository(InsightReportEntity)
-        private readonly reportRepository: Repository<InsightReportEntity>
+        private readonly reportRepository: Repository<InsightReportEntity>,
+        private readonly aiProcessor: AIProcessorService
     ) { }
 
     async createInsight(createInsightDto: CreateInsightDto, file: Multer.File, currentUser): Promise<InsightEntity> {
-        const user = await this.userRepository.findOne({ where: { id: currentUser.id } });
+    const user = await this.userRepository.findOne({ where: { id: currentUser.id } });
 
-        if (currentUser.role === "admin") {
-            const insightData = {
-                ...createInsightDto,
-                mediaUrl: file ? file.filename : null,
-                authorId: currentUser.id,
-            };
-            const insight = this.insightRepository.create(insightData);
-            return this.insightRepository.save(insight);
+    // 1. SAFELY PARSE THE TAGS FROM THE DTO BEFORE ANY SAVING HAPPENS
+    let processedTags: string[] = [];
+    if (createInsightDto.tagList) {
+        if (typeof createInsightDto.tagList === 'string') {
+            processedTags = (createInsightDto.tagList as string)
+                .split(',')
+                .map(tag => tag.trim())
+                .filter(tag => tag.length > 0);
+        } else if (Array.isArray(createInsightDto.tagList)) {
+            processedTags = createInsightDto.tagList;
         }
-        if (!user) {
-            throw new Error('User not found');
-        }
+    }
 
+    // --- ADMIN PATH ---
+    if (currentUser.role === "admin") {
         const insightData = {
             ...createInsightDto,
             mediaUrl: file ? file.filename : null,
             authorId: currentUser.id,
+            tagList: processedTags, // Forcing our parsed array here
         };
         const insight = this.insightRepository.create(insightData);
-        const createdInsight = this.insightRepository.save(insight);
-
-        return createdInsight
+        return this.insightRepository.save(insight);
     }
 
-    async editInsight(currentUserId: number, insightId: string, createInsightDto: CreateInsightDto): Promise<InsightEntity> {
-        const insight = await this.insightRepository.findOne({ where: { id: insightId } });
-
-        if (!insight) {
-            throw new HttpException('Insight not found', HttpStatus.NOT_FOUND);
-        }
-
-        if (currentUserId !== insight.authorId) {
-            throw new HttpException("You are not the author of this insight", HttpStatus.FORBIDDEN);
-        }
-
-        const insightData = {
-            ...createInsightDto,
-            mediaUrl: insight.mediaUrl,
-            authorId: currentUserId,
-        };
-        const updatedInsight = this.insightRepository.create(insightData);
-        const savedInsight = await this.insightRepository.save(updatedInsight);
-
-        return savedInsight
+    if (!user) {
+        throw new Error('User not found');
     }
+
+    // --- STANDARD USER PATH ---
+    const insightData = {
+        ...createInsightDto,
+        mediaUrl: file ? file.filename : null,
+        authorId: currentUser.id,
+        tagList: processedTags, // Forcing our parsed array here
+    };
+    
+    const textToScan = `${insightData.title || ''} ${insightData.content || ''}`.trim();
+    this.logger.log(`Scanning combined content payload text: "${textToScan}"`);
+
+    const textCheck = await this.aiProcessor.analyzeTextAI(textToScan);
+    if (textCheck.isFlagged) {
+        const violation = textCheck.reason ?? 'Inappropriate Content';
+        throw new HttpException(
+            `Post blocked by Validation System. Reason: Content contains ${violation.toLowerCase()}.`,
+            HttpStatus.BAD_REQUEST
+        );
+    }
+
+    // Multi-media scanning layer
+    if (insightData.mediaUrl) {
+        const mediaCheck = await this.aiProcessor.analyzeMediaFile(insightData.mediaUrl);
+        
+        if (mediaCheck.isFlagged) {
+            const violation = mediaCheck.reason ?? 'Inappropriate Media';
+            throw new HttpException(
+                `Post blocked by AI System. Reason: Media contains ${violation.toLowerCase()}.`,
+                HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    const insight = this.insightRepository.create(insightData);
+    const createdInsight = await this.insightRepository.save(insight); // Added missing await here for consistency
+
+    return createdInsight;
+}
+
+   async editInsight(currentUserId: number, insightId: string, createInsightDto: CreateInsightDto): Promise<InsightEntity> {
+    // 1. Verify the insight exists
+    const insight = await this.insightRepository.findOne({ where: { id: insightId } });
+
+    if (!insight) {
+        throw new HttpException('Insight not found', HttpStatus.NOT_FOUND);
+    }
+
+    // 2. Verify ownership
+    if (currentUserId !== insight.authorId) {
+        throw new HttpException("You are not the author of this insight", HttpStatus.FORBIDDEN);
+    }
+
+    // 3. Clean up and split tags if they are arriving as a string
+    let processedTags = insight.tagList || [];
+    if (createInsightDto.tagList) {
+        if (typeof createInsightDto.tagList === 'string') {
+            processedTags = (createInsightDto.tagList as string)
+                .split(',')
+                .map(tag => tag.trim())
+                .filter(tag => tag.length > 0);
+        } else if (Array.isArray(createInsightDto.tagList)) {
+            processedTags = createInsightDto.tagList;
+        }
+    }
+
+    // 4. Merge incoming payload while forcing TypeORM to use the existing entry ID
+    const insightData = {
+        ...insight,              // Keep existing unedited fields intact
+        ...createInsightDto,     // Overwrite edited fields
+        id: insightId,           // CRITICAL: Tells TypeORM to execute an UPDATE instead of an INSERT
+        tagList: processedTags,  // Use our safely structured array
+        mediaUrl: insight.mediaUrl,
+        authorId: currentUserId,
+    };
+
+    // 5. Save the updated instance safely
+    const updatedInsight = this.insightRepository.create(insightData);
+    const savedInsight = await this.insightRepository.save(updatedInsight);
+
+    return savedInsight;
+}
 
     async deleteInsight(currentUserId: number, insightId: string){
         const insight = await this.insightRepository.findOne({ where: { id: insightId } });

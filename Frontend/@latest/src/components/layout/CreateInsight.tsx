@@ -8,13 +8,14 @@ import {
   Trophy,
   Newspaper,
   Megaphone,
-  Image,
+  Image as ImageIcon,
   Video,
   Dumbbell,
   AlertCircle,
   CheckCircle2,
   Loader2,
   Plus,
+  Paperclip,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ interface FieldErrors {
   location?: string;
   eventDate?: string;
   awardDetail?: string;
+  file?: string;
 }
 
 type SubmitStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -64,7 +66,7 @@ const TYPE_CONFIG = {
     description: 'Share knowledge or start a discussion',
   },
   [InsightType.IMAGE]: {
-    icon: Image,
+    icon: ImageIcon,
     label: 'Image',
     color: 'text-violet-500',
     bg: 'bg-violet-500/10',
@@ -134,7 +136,7 @@ const getStoredUser = () => {
 
 const getToken = () => localStorage.getItem('authToken') ?? '';
 
-const validate = (form: FormState): FieldErrors => {
+const validate = (form: FormState, file: File | null): FieldErrors => {
   const errors: FieldErrors = {};
 
   if (!form.title.trim())             errors.title = 'Title is required.';
@@ -143,6 +145,13 @@ const validate = (form: FormState): FieldErrors => {
 
   if (!form.content.trim())           errors.content = 'Description is required for all posts to keep the feed informative.';
   else if (form.content.length < 10)  errors.content = 'Please write at least 10 characters of content.';
+
+  if (form.type === InsightType.IMAGE && !file) {
+    errors.file = 'Please attach an image file for this insight type.';
+  }
+  if (form.type === InsightType.VIDEO && !file) {
+    errors.file = 'Please attach a video file for this insight type.';
+  }
 
   if (form.type === InsightType.EVENT) {
     if (!form.location.trim())        errors.location = 'Location is required for campus events.';
@@ -155,8 +164,6 @@ const validate = (form: FormState): FieldErrors => {
 
   return errors;
 };
-
-// ── Sub-components ────────────────────────────────────────────────────────────
 
 const FieldError = ({ message }: { message?: string }) =>
   message ? (
@@ -186,14 +193,18 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
   const user = getStoredUser();
 
   const [form, setForm]           = useState<FormState>(INITIAL_FORM);
-  const [errors, setErrors]       = useState<FieldErrors>({});
-  const [touched, setTouched]     = useState<Partial<Record<keyof FormState, boolean>>>({});
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview]   = useState<string | null>(null);
+  
+  const [errors, setErrors]       = useState<FieldErrors>( {});
+  const [touched, setTouched]     = useState<Partial<Record<keyof FormState | 'file', boolean>>>({});
   const [tagInput, setTagInput]   = useState('');
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle');
   const [submitError, setSubmitError]   = useState('');
   const [expanded, setExpanded]   = useState(false);
 
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -204,17 +215,36 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
     }
   }, [form.content]);
 
+  // Handle File Selections and Clean Up Revoke Blobs
+  useEffect(() => {
+    if (!selectedFile) {
+      setFilePreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setFilePreview(objectUrl);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [selectedFile]);
+
   const set = (key: keyof FormState, value: string | string[]) => {
     setForm(prev => ({ ...prev, [key]: value }));
     if (touched[key]) {
       const next = { ...form, [key]: value };
-      setErrors(validate(next as FormState));
+      setErrors(validate(next as FormState, selectedFile));
     }
   };
 
-  const touch = (key: keyof FormState) => {
+  const touch = (key: keyof FormState | 'file') => {
     setTouched(prev => ({ ...prev, [key]: true }));
-    setErrors(prev => ({ ...prev, ...validate({ ...form }) }));
+    setErrors(prev => ({ ...prev, ...validate({ ...form }, selectedFile) }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setSelectedFile(file);
+    setTouched(prev => ({ ...prev, file: true }));
+    setErrors(validate(form, file));
   };
 
   const addTag = () => {
@@ -230,68 +260,80 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
 
   const handleTypeChange = (type: InsightType) => {
     setForm(prev => ({ ...prev, type, location: '', eventDate: '', awardDetail: '' }));
+    setSelectedFile(null);
+    setErrors({});
+    setTouched({});
+  };
+
+  const handleClearForm = () => {
+    setForm(INITIAL_FORM);
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setErrors({});
     setTouched({});
   };
 
   const handleSubmit = async () => {
-    // Mark all fields touched
-    setTouched({ type: true, title: true, content: true, location: true, eventDate: true, awardDetail: true });
-    const fieldErrors = validate(form);
+    setTouched({ type: true, title: true, content: true, location: true, eventDate: true, awardDetail: true, file: true });
+    const fieldErrors = validate(form, selectedFile);
     setErrors(fieldErrors);
     if (Object.keys(fieldErrors).length > 0) return;
 
     setSubmitStatus('loading');
     setSubmitError('');
 
-    const payload: Record<string, unknown> = {
-      type:    form.type,
-      title:   form.title.trim(),
-      content: form.content.trim(),
-      tagList: form.tagList,
-    };
+    // ✅ TRANSITION TO FORMDATA FOR MULTIPART ROUTING (AI Scanning Compatibility)
+    const formData = new FormData();
+    formData.append('type', form.type);
+    formData.append('title', form.title.trim());
+    formData.append('content', form.content.trim());
+    
+    // Append tags properly for multi-part format handling
+    form.tagList.forEach(tag => formData.append('tagList[]', tag));
+
     if (form.type === InsightType.EVENT) {
-      payload.location  = form.location.trim();
-      payload.eventDate = form.eventDate;
+      formData.append('location', form.location.trim());
+      formData.append('eventDate', form.eventDate);
     }
     if (form.type === InsightType.ACHIEVEMENT) {
-      payload.awardDetail = form.awardDetail.trim();
+      formData.append('awardDetail', form.awardDetail.trim());
+    }
+    if (selectedFile) {
+      formData.append('image', selectedFile);
     }
 
     try {
       const res = await fetch('http://localhost:3000/insights/create-insight', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          // Do NOT explicitly declare Content-Type here; browser will automatically set boundary boundaries
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify(payload),
+        body: formData,
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        // NestJS validation errors come as array in data.message
         if (Array.isArray(data?.message)) {
           throw new Error(data.message.join(' · '));
         }
+        
+        // Catches Validation / AI Engine intercept messages thrown from NestJS controllers
         const statusMap: Record<number, string> = {
-          400: data?.message || 'Invalid data. Please review your input.',
-          401: 'Your session has expired. Please log in again.',
-          403: 'You do not have permission to post insights.',
-          429: 'Too many posts. Please wait a moment before trying again.',
-          500: 'Server error. Please try again in a moment.',
+          400: data?.message || 'Invalid insight payload configuration.',
+          401: 'Session broken. Re-authentication required.',
+          403: 'Access denied for structural insights posting.',
+          429: 'Rate limit boundary tripped. Wait a moment.',
+          500: data?.message || 'AI moderation pipeline or core processing broke.',
         };
-        throw new Error(statusMap[res.status] ?? `Unexpected error (${res.status}).`);
+        throw new Error(statusMap[res.status] ?? `Validation block status (${res.status}).`);
       }
 
       setSubmitStatus('success');
-      setForm(INITIAL_FORM);
-      setTouched({});
-      setErrors({});
+      handleClearForm();
       setExpanded(false);
       onSuccess?.();
 
-      // Reset success state after 3s
       setTimeout(() => setSubmitStatus('idle'), 3000);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -310,14 +352,13 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
   return (
     <div className={`rounded-3xl border border-outline-variant/10 bg-surface-lowest shadow-xl transition-all duration-300 ${expanded ? 'shadow-primary/10' : ''}`}>
 
-      {/* ── Header row (always visible) ─────────────────────────────── */}
+      {/* ── Header row ─────────────────────────────── */}
       <div className="flex gap-3 sm:gap-4 p-4 sm:p-5 pb-0">
         <div className="w-11 h-11 rounded-xl overflow-hidden ring-2 ring-surface-low flex-shrink-0 mt-1">
           <img src={avatarSrc} alt={user?.username ?? 'You'} className="w-full h-full object-cover" />
         </div>
 
         {!expanded ? (
-          /* Collapsed placeholder */
           <button
             onClick={() => setExpanded(true)}
             className="flex-1 text-left bg-surface-low/50 hover:bg-surface-low rounded-2xl px-4 py-2.5 text-sm text-on-surface-variant transition-colors"
@@ -325,7 +366,6 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
             Share a scholarly insight, {user?.username ?? 'scholar'}…
           </button>
         ) : (
-          /* Type selector pills */
           <div className="flex-1 flex flex-wrap gap-1.5 pb-0 overflow-x-auto">
             {Object.entries(TYPE_CONFIG).map(([type, cfg]) => {
               const Icon    = cfg.icon;
@@ -350,7 +390,7 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
 
         {expanded && (
           <button
-            onClick={() => { setExpanded(false); setForm(INITIAL_FORM); setErrors({}); setTouched({}); }}
+            onClick={() => { setExpanded(false); handleClearForm(); }}
             className="w-9 h-9 rounded-xl flex items-center justify-center text-on-surface-variant hover:bg-surface-low hover:text-on-surface transition-all mt-0.5 flex-shrink-0"
           >
             <X size={16} />
@@ -362,7 +402,6 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
       {expanded && (
         <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-3 sm:pt-4 space-y-3 sm:space-y-4">
 
-          {/* Type description */}
           <p className={`text-xs font-medium ${currentConfig.color} flex items-center gap-1.5`}>
             <CurrentIcon size={12} />
             {currentConfig.description}
@@ -407,14 +446,61 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
             <FieldError message={touched.content ? errors.content : undefined} />
           </div>
 
-          {/* EVENT-specific fields */}
+          {/* Dynamic File Attachment Node */}
+          {(form.type === InsightType.IMAGE || form.type === InsightType.VIDEO) && (
+            <div className="p-4 rounded-2xl bg-surface-low/40 border border-outline-variant/10 space-y-3">
+              <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider block">
+                Resource Attachment ({form.type})
+              </label>
+              
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept={form.type === InsightType.IMAGE ? 'image/*' : 'video/*'}
+                className="hidden"
+                id="insight-file-input"
+              />
+
+              {!selectedFile ? (
+                <label
+                  htmlFor="insight-file-input"
+                  className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline-variant/30 rounded-xl p-6 cursor-pointer hover:bg-surface-low/80 hover:border-primary/40 transition-all text-on-surface-variant"
+                >
+                  <Paperclip size={20} className={currentConfig.color} />
+                  <span className="text-xs font-semibold">Click to attach asset payload</span>
+                  <span className="text-[10px] opacity-60">Max size tracking limit: 10MB</span>
+                </label>
+              ) : (
+                <div className="relative rounded-xl overflow-hidden border border-outline-variant/10 bg-surface-dim p-2 flex items-center justify-between gap-4">
+                  {form.type === InsightType.IMAGE && filePreview && (
+                    <img src={filePreview} alt="Upload Preview" className="w-16 h-16 rounded-lg object-cover bg-black" />
+                  )}
+                  {form.type === InsightType.VIDEO && (
+                    <div className="w-16 h-16 rounded-lg bg-black flex items-center justify-center text-white text-[10px] font-bold">VIDEO</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold truncate text-on-surface">{selectedFile.name}</p>
+                    <p className="text-[10px] text-on-surface-variant">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  </div>
+                  <button
+                    onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                    className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+              <FieldError message={touched.file ? errors.file : undefined} />
+            </div>
+          )}
+
+          {/* EVENT fields */}
           {form.type === InsightType.EVENT && (
-            <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 p-3 sm:p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 sm:p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10">
               <p className="col-span-full text-xs font-bold text-blue-500 flex items-center gap-1.5">
                 <Calendar size={12} /> Event Details
               </p>
-
-              {/* Location */}
               <div>
                 <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-1">Location</label>
                 <div className="relative">
@@ -432,8 +518,6 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
                 </div>
                 <FieldError message={touched.location ? errors.location : undefined} />
               </div>
-
-              {/* Event Date */}
               <div>
                 <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-1">Date & Time</label>
                 <input
@@ -450,7 +534,7 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
             </div>
           )}
 
-          {/* ACHIEVEMENT-specific field */}
+          {/* ACHIEVEMENT field */}
           {form.type === InsightType.ACHIEVEMENT && (
             <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 space-y-2">
               <p className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
@@ -461,7 +545,7 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
                 value={form.awardDetail}
                 onChange={e => set('awardDetail', e.target.value)}
                 onBlur={() => touch('awardDetail')}
-                placeholder="e.g. 1st Place — Regional Robotics Championship 2025"
+                placeholder="e.g. 1st Place — Regional Robotics Championship"
                 className={`w-full bg-surface-low/50 border rounded-xl px-4 py-2.5 text-sm outline-none transition-all focus:ring-2 ring-amber-500/20 ${
                   errors.awardDetail && touched.awardDetail ? 'border-rose-500/60' : 'border-outline-variant/10 focus:border-amber-400/40'
                 }`}
@@ -477,10 +561,7 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
             </label>
             <div className="flex flex-wrap gap-2 mb-2">
               {form.tagList.map(tag => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1.5 bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full"
-                >
+                <span key={tag} className="inline-flex items-center gap-1.5 bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full">
                   <Tag size={10} />
                   {tag}
                   <button onClick={() => removeTag(tag)} className="hover:text-rose-500 transition-colors ml-0.5">
@@ -502,7 +583,7 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
                 <button
                   onClick={addTag}
                   disabled={!tagInput.trim()}
-                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
                 >
                   <Plus size={16} />
                 </button>
@@ -510,15 +591,15 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
             )}
           </div>
 
-          {/* Global submit error */}
+          {/* Error display banner */}
           {submitStatus === 'error' && (
             <div className="flex items-start gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 animate-in fade-in duration-200">
               <AlertCircle size={16} className="text-rose-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-rose-500 mb-0.5">Failed to post insight</p>
+              <div className="flex-1">
+                <p className="text-xs font-bold text-rose-500 mb-0.5">Content Blocked / Failed</p>
                 <p className="text-xs text-rose-400 leading-relaxed">{submitError}</p>
               </div>
-              <button onClick={() => setSubmitStatus('idle')} className="ml-auto text-rose-400 hover:text-rose-500">
+              <button onClick={() => setSubmitStatus('idle')} className="text-rose-400 hover:text-rose-500">
                 <X size={14} />
               </button>
             </div>
@@ -528,7 +609,7 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
           {submitStatus === 'success' && (
             <div className="flex items-center gap-3 p-4 rounded-2xl bg-green-500/10 border border-green-500/20 animate-in fade-in duration-200">
               <CheckCircle2 size={16} className="text-green-500" />
-              <p className="text-xs font-bold text-green-600">Insight posted successfully!</p>
+              <p className="text-xs font-bold text-green-600">Insight cleared by AI and posted successfully!</p>
             </div>
           )}
 
@@ -537,15 +618,14 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
             <div className="flex items-center gap-2">
               {hasErrors && Object.values(touched).some(Boolean) && (
                 <span className="text-xs text-rose-500 flex items-center gap-1">
-                  <AlertCircle size={11} />
-                  Please fix the errors above
+                  <AlertCircle size={11} /> Please resolve form requirements.
                 </span>
               )}
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
               <button
-                onClick={() => { setForm(INITIAL_FORM); setErrors({}); setTouched({}); }}
+                onClick={handleClearForm}
                 className="text-xs text-on-surface-variant hover:text-on-surface transition-colors px-3 py-1.5"
               >
                 Clear
@@ -560,7 +640,7 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
                 } ${currentConfig.activeBg} shadow-${currentConfig.activeBg}/30`}
               >
                 {submitStatus === 'loading' ? (
-                  <><Loader2 size={15} className="animate-spin" /> Posting…</>
+                  <><Loader2 size={15} className="animate-spin" /> Verifying Safety…</>
                 ) : (
                   <><Send size={15} /> Post Insight</>
                 )}
