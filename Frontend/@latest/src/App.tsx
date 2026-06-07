@@ -7,10 +7,10 @@ import Help from './pages/utility/Help.tsx';
 import Logout from './pages/auth/Logout.tsx';
 import Login from './pages/auth/Login.tsx';
 import Register from './pages/auth/Register.tsx';
-import Example from './pages/profile/Example.tsx';
+
 import Verify from './pages/auth/Verify.tsx';
-import AdminLogin from './pages/auth/Adminlogin.tsx';
-import AdminDashboard from './pages/admin/admin_dashboard/Admindashboard.tsx';
+import AdminLogin from './pages/auth/AdminLogin.tsx';
+import AdminDashboard from './pages/admin/admin_dashboard/AdminDashboard.tsx'
 // Placeholder components for other pages
 const Placeholder = ({ title }: { title: string }) => (
   <div className="flex items-center justify-center min-h-[60vh] text-on-surface-variant italic font-serif text-2xl">
