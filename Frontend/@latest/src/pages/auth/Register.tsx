@@ -298,6 +298,7 @@ const Register = () => {
             <Link to="/login" className="text-primary font-bold hover:underline underline-offset-4">Access Session</Link>
           </p>
         </div>
+        
       </Card>
     </div>
   );

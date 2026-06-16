@@ -11,6 +11,7 @@ import Register from './pages/auth/Register.tsx';
 import Verify from './pages/auth/Verify.tsx';
 import AdminLogin from './pages/auth/AdminLogin.tsx';
 import AdminDashboard from './pages/admin/admin_dashboard/AdminDashboard.tsx'
+import ForgotPassword from './pages/auth/ForgetPassword.tsx';
 // Placeholder components for other pages
 const Placeholder = ({ title }: { title: string }) => (
   <div className="flex items-center justify-center min-h-[60vh] text-on-surface-variant italic font-serif text-2xl">
@@ -44,6 +45,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/logout" element={<Logout />} />
         <Route path="/verify-otp" element={<Verify/>} />
+        <Route path="/forgot-password" element={<ForgotPassword/>} />
       </Routes>
     </Router>
   );

@@ -143,9 +143,12 @@ const Login = () => {
             </div>
           </div>
 
-          <div className="flex justify-end p-1">
-            <button type="button" className="text-xs font-bold text-primary hover:underline underline-offset-4">Forgot Credentials?</button>
-          </div>
+          <div className="mt-12 pt-8 border-t border-outline-variant/10 text-center">
+          <p className="text-sm text-on-surface-variant">
+            Forgot your password?{' '}
+            <Link to="/forgot-password" className="text-primary font-bold hover:underline underline-offset-4">Reset it</Link>
+          </p>
+        </div>
 
           <Button type="submit" disabled={isLoading} className="w-full py-4 text-base flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed">
             {isLoading ? 'Accessing Insights...' : 'Access Insights'}
