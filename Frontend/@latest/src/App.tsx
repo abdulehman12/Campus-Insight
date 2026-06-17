@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout.tsx';
+import ProtectedAdminRoute from './components/ProtectedAdminRoute.tsx';
 import Home from './pages/feed/Home.tsx';
 import Profile from './pages/profile/Profile.tsx';
 import Settings from './pages/utility/Settings.tsx';
@@ -10,7 +11,6 @@ import Register from './pages/auth/Register.tsx';
 
 import Verify from './pages/auth/Verify.tsx';
 import AdminLogin from './pages/auth/AdminLogin.tsx';
-import AdminDashboard from './pages/admin/admin_dashboard/AdminDashboard.tsx'
 import ForgotPassword from './pages/auth/ForgetPassword.tsx';
 // Placeholder components for other pages
 const Placeholder = ({ title }: { title: string }) => (
@@ -36,9 +36,11 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/help" element={<Help />} />
           <Route path="/create-post" element={<Placeholder title="New Insight" />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin/*" element={<AdminDashboard />} />
         </Route>
+
+        {/* Admin Routes - Outside MainLayout */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/*" element={<ProtectedAdminRoute />} />
 
         {/* Standalone Auth Pages */}
         <Route path="/login" element={<Login />} />
