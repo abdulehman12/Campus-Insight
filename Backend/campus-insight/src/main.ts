@@ -13,8 +13,9 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'https://campus-insight-3qtwp666h-abdul-rehman-siddiqui-s-projects.vercel.app', 
-      'http://localhost:5173', // Add your local frontend port if you use Vite/React locally
-      'http://localhost:3000'
+      'http://localhost:5175', 
+      'http://localhost:3000',
+      "https://campus-insight.vercel.app"
     ], // Allow all origins (you can specify specific origins if needed)
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Allowed HTTP methods
     allowedHeaders: 'Content-Type, Accept, Authorization', // Allowed headers

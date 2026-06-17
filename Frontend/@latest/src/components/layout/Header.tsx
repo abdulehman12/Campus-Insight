@@ -260,6 +260,14 @@ const Header = () => {
                   <HelpCircle size={18} className="text-on-surface-variant group-hover:text-primary" />
                   <span className="font-medium text-sm">Help & Support</span>
                 </Link>
+                <Link 
+                  to={isAdmin ? "/admin" : "/admin/login"} 
+                  onClick={() => setIsMenuOpen(false)} 
+                  className="flex items-center gap-4 px-4 py-3 rounded-2xl hover:bg-amber-50 text-amber-600 transition-colors group"
+                >
+                  <Shield size={18} className="text-amber-500 group-hover:text-amber-600" />
+                  <span className="font-bold text-sm">{isAdmin ? "Admin Panel" : "Admin Login"}</span>
+                </Link>
                 <Link to="/logout" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 px-4 py-3 rounded-2xl hover:bg-red-50 text-red-600 transition-colors">
                   <LogOut size={18} className="text-red-500" />
                   <span className="font-bold text-sm">Log out Session</span>
