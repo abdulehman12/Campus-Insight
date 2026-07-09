@@ -18,7 +18,7 @@ export class AuthMiddleware implements NestMiddleware {
 
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      req.user = null;
+      req.user = undefined;
       return next();
     }
 
@@ -28,7 +28,7 @@ export class AuthMiddleware implements NestMiddleware {
       // 3. Use .get() to retrieve your secret
       const secret = this.configService.get<string>('JWT_SECRET');
       if (!secret) {
-        req.user = null;
+        req.user = undefined;
         return next();
       }
 
@@ -45,10 +45,10 @@ export class AuthMiddleware implements NestMiddleware {
     return next();
   }
       
-      req.user = user || null;
+      req.user = user || undefined;
       next();
     } catch (error) {
-      req.user = null;
+      req.user = undefined;
       next();
     }
   }

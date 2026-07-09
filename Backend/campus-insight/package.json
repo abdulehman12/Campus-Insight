@@ -23,7 +23,7 @@
     "db:migrate": "npm run typeorm -- migration:run"
   },
   "dependencies": {
-    "@huggingface/inference": "^4.13.18",
+    "@huggingface/inference": "^4.13.19",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -60,6 +60,7 @@
     "@nestjs/testing": "^11.0.1",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
+    "@types/fluent-ffmpeg": "^2.1.28",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/passport-jwt": "^4.0.1",
