@@ -55,7 +55,9 @@ interface InsightCardProps {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const API_BASE = 'http://localhost:3000';
+import { BACKEND_URL } from '../../config/api';
+
+const API_BASE = BACKEND_URL;
 
 const buildMediaSrc = (url: string | null | undefined): string | null => {
   if (!url) return null;

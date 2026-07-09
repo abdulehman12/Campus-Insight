@@ -8,9 +8,9 @@ import {
   ArrowUpRight, ArrowDownRight, Activity, Clock, Shield, Eye, EyeOff,
   ArrowLeftRight, Star,
 } from 'lucide-react';
+import { BACKEND_URL } from '../../../config/api.ts';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const BASE_URL = 'http://localhost:3000';
 const getAdminToken = () => localStorage.getItem('adminToken') ?? '';
 const authHeaders  = () => ({
   'Content-Type': 'application/json',

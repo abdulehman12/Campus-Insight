@@ -1,31 +1,19 @@
+import { BACKEND_URL } from '../../config/api';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import {
   Globe, MapPin, BookOpen, Award, TrendingUp, Users, UserCheck,
   AlertCircle, RefreshCw, Hash, Phone, Shield, GraduationCap,
-  UserPlus, UserMinus, Edit3, Share2, Clock, Image, Video, Heart, MessageCircle,
-  Calendar, Megaphone, Trophy, Newspaper, Dumbbell, Tag,  X, Check, Loader2, User,
+  UserPlus, UserMinus, Edit3, Share2, Clock, X, Check, Loader2, User,
   Link2, Copy, QrCode,
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import CreateInsight from '../../components/layout/CreateInsight';
+import InsightCard from '../../components/feed/InsightCard';
+import type { Insight } from '../../utils/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface ProfileInsight {
-  id: string;
-  type: string;
-  title: string;
-  content: string;
-  mediaUrl?: string | null;
-  location?: string | null;
-  eventDate?: string | null;
-  awardDetail?: string | null;
-  tagList: string[];
-  createdAt: string;
-  authorId: number;
-}
 
 interface ProfileData {
   username: string;
@@ -38,7 +26,7 @@ interface ProfileData {
   followersCount: number;
   followingCount: number;
   following: boolean;
-  insights: ProfileInsight[];
+  insights: Insight[];
 }
 
 type FetchState = 'idle' | 'loading' | 'success' | 'error';
@@ -64,17 +52,7 @@ interface EditErrors {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const BASE_URL = 'http://localhost:3000';
-
-const TYPE_META: Record<string, { icon: React.ElementType; label: string; color: string; bg: string }> = {
-  text:         { icon: Newspaper,  label: 'Text',         color: 'text-primary',    bg: 'bg-primary/10' },
-  image:        { icon: Image,      label: 'Image',        color: 'text-violet-500', bg: 'bg-violet-500/10' },
-  video:        { icon: Video,      label: 'Video',        color: 'text-pink-500',   bg: 'bg-pink-500/10' },
-  event:        { icon: Calendar,   label: 'Event',        color: 'text-blue-500',   bg: 'bg-blue-500/10' },
-  announcement: { icon: Megaphone,  label: 'Announcement', color: 'text-rose-500',   bg: 'bg-rose-500/10' },
-  achievement:  { icon: Trophy,     label: 'Achievement',  color: 'text-amber-500',  bg: 'bg-amber-500/10' },
-  sports:       { icon: Dumbbell,   label: 'Sports',       color: 'text-green-500',  bg: 'bg-green-500/10' },
-};
+const BASE_URL = BACKEND_URL;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -156,93 +134,6 @@ const StatBadge = ({
 );
 
 // ── Insight Card (feed-style, no author row) ─────────────────────────────────
-
-const ProfileInsightCard = ({ insight }: { insight: ProfileInsight }) => {
-  const meta = TYPE_META[insight.type] ?? TYPE_META.text;
-  const Icon = meta.icon;
-
-  return (
-    <div className="group rounded-3xl border border-outline-variant/10 bg-surface-lowest hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-      <div className="p-5 sm:p-6">
-        {/* Type + time */}
-        <div className="flex items-center justify-between mb-4">
-          <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${meta.bg} ${meta.color}`}>
-            <Icon size={11} /> {meta.label}
-          </span>
-          <span className="text-xs text-on-surface-variant flex items-center gap-1">
-            <Clock size={11} /> {timeAgo(insight.createdAt)}
-          </span>
-        </div>
-
-        {/* Title + content */}
-        <h4 className="font-bold text-base sm:text-lg text-on-surface mb-2 leading-snug line-clamp-2">{insight.title}</h4>
-        <p className="text-sm text-on-surface-variant leading-relaxed line-clamp-3">{insight.content}</p>
-
-        {/* Media */}
-        {insight.mediaUrl && (
-          <div className="mt-3 rounded-2xl overflow-hidden bg-surface-low max-h-64">
-            <img
-              src={buildMediaSrc(insight.mediaUrl)}
-              alt={insight.title}
-              className="w-full h-full object-cover"
-              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-            />
-          </div>
-        )}
-
-        {/* Event extras */}
-        {insight.type === 'event' && (insight.location || insight.eventDate) && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {insight.location && (
-              <span className="text-xs text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full font-medium">📍 {insight.location}</span>
-            )}
-            {insight.eventDate && (
-              <span className="text-xs text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full font-medium">
-                🗓 {new Date(insight.eventDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Achievement extras */}
-        {insight.type === 'achievement' && insight.awardDetail && (
-          <div className="mt-3">
-            <span className="text-xs text-amber-600 bg-amber-500/10 px-3 py-1 rounded-full font-medium">🏆 {insight.awardDetail}</span>
-          </div>
-        )}
-
-        {/* Tags */}
-        {insight.tagList?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {insight.tagList.map(tag => (
-              <span key={tag} className="text-[11px] font-semibold text-on-surface-variant bg-surface-low px-2.5 py-0.5 rounded-full">
-                #{tag.trim()}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-4 sm:gap-6 mt-4 pt-4 border-t border-outline-variant/10">
-          <button className="flex items-center gap-1.5 text-sm font-semibold text-on-surface-variant hover:text-rose-500 transition-colors group/btn">
-            <Heart size={15} className="group-hover/btn:scale-110 transition-transform" />
-            <span>0</span>
-          </button>
-          <button className="flex items-center gap-1.5 text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors">
-            <MessageCircle size={15} />
-            <span>0</span>
-          </button>
-          <button className="flex items-center gap-1.5 text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors ml-auto">
-            <Share2 size={15} />
-            <span className="hidden sm:inline text-xs">Share</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
 
 // ── Share Profile Modal ───────────────────────────────────────────────────────
 
@@ -572,6 +463,7 @@ const Profile = () => {
   const [editErrors, setEditErrors]       = useState<EditErrors>({});
   const [editLoading, setEditLoading]     = useState(false);
   const [editSuccess, setEditSuccess]     = useState(false);
+  const [profileInsights, setProfileInsights] = useState<Insight[]>([]);
 
   const { username: profileUsername = '' } = useParams<{ username: string }>();
   const navigate = useNavigate();
@@ -605,6 +497,7 @@ const Profile = () => {
       console.log('Profile API response:', data.profile);
       console.log('following field:', data.profile.following);
       setProfile(data.profile);
+      setProfileInsights(data.profile.insights || []);
       setIsFollowing(Boolean(data.profile.following));
       setFetchState('success');
     } catch (err) {
@@ -709,9 +602,18 @@ const Profile = () => {
   if (!profile) return null;
 
   const avatar   = buildAvatarSrc(profile.image, profile.username);
-  const insights = [...(profile.insights ?? [])].sort(
+  const insights = [...profileInsights].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+
+  const handleTagClick = (tag: string) => {
+    console.log('Tag clicked:', tag);
+    // Could navigate to feed with tag filter if needed
+  };
+
+  const handleDeleteInsight = (id: string) => {
+    setProfileInsights(prev => prev.filter(insight => insight.id !== id));
+  };
 
   return (
     <div className="space-y-5 py-4">
@@ -936,7 +838,12 @@ const Profile = () => {
           ) : (
             <div className="space-y-5">
               {insights.map(insight => (
-                <ProfileInsightCard key={insight.id} insight={insight} />
+                <InsightCard
+                  key={insight.id}
+                  insight={insight}
+                  onTagClick={handleTagClick}
+                  onDelete={handleDeleteInsight}
+                />
               ))}
             </div>
           )}

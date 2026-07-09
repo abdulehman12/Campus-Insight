@@ -4,6 +4,7 @@ import Card from '../../components/ui/Card.tsx';
 import Button from '../../components/ui/Button.tsx';
 import { LayoutDashboard, Hash, ShieldCheck, ArrowRight, RotateCcw } from 'lucide-react';
 import axios from 'axios';
+import { BACKEND_URL } from '../../config/api';
 
 const OTP_LENGTH = 6;
 
@@ -77,7 +78,7 @@ const Verify = () => {
         }
       };
       
-      await axios.post('http://localhost:3000/users/verify', data);
+      await axios.post(`${BACKEND_URL}/users/verify`, data);
       setResendCooldown(60);
       setOtp(Array(OTP_LENGTH).fill(''));
       setMessage({ type: 'success', text: 'OTP resent successfully to your registered email' });
@@ -118,7 +119,7 @@ const Verify = () => {
       };
       
       console.log('Verifying with data:', data);
-      const response = await axios.post('http://localhost:3000/users/verify', data);
+      const response = await axios.post(`${BACKEND_URL}/users/verify`, data);
       console.log('Verification successful:', response.data);
       setMessage({ type: 'success', text: 'Verification successful! Redirecting...' });
       setTimeout(() => navigate('/login'), 1500);

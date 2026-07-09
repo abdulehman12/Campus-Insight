@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Shield, Eye, EyeOff, Loader2, AlertCircle, Lock, Mail,
 } from 'lucide-react';
-
-const BASE_URL = 'http://localhost:3000';
+import { BACKEND_URL } from '../../config/api.ts';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -43,7 +42,7 @@ const AdminLogin = () => {
     setError('');
 
     try {
-      const res = await fetch(`${BASE_URL}/users/admin/login`, {
+      const res = await fetch(`${BACKEND_URL}/users/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user: { email: form.email.trim(), password: form.password } }),
@@ -204,7 +203,7 @@ const AdminLogin = () => {
                   <img
                     src={!regularUser.image || regularUser.image === 'default.png'
                       ? `https://ui-avatars.com/api/?name=${encodeURIComponent(regularUser.username)}&background=6366f1&color=fff&size=40&bold=true`
-                      : `http://localhost:3000/uploads/profiles/${regularUser.image}`}
+                      : `${BACKEND_URL}/uploads/profiles/${regularUser.image}`}
                     alt={regularUser.username}
                     className="w-full h-full object-cover"
                   />

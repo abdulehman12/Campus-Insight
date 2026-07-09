@@ -4,6 +4,7 @@ import Card from '../../components/ui/Card.tsx';
 import Button from '../../components/ui/Button.tsx';
 import { Mail, Lock, LayoutDashboard, ArrowRight } from 'lucide-react';
 import axios from 'axios';
+import { BACKEND_URL } from '../../config/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -32,7 +33,7 @@ const Login = () => {
       };
       
       console.log('Logging in with email:', email);
-      const response = await axios.post('http://localhost:3000/users/login', data);
+      const response = await axios.post(`${BACKEND_URL}/users/login`, data);
       
       // Extract user object and token from response
       const userData = response.data.user;

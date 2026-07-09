@@ -4,6 +4,7 @@ import Card from '../../components/ui/Card.tsx';
 import Button from '../../components/ui/Button.tsx';
 import { User, Mail, Lock, LayoutDashboard, Hash, Phone, Building2, ArrowRight, Camera, ImagePlus, Calendar } from 'lucide-react';
 import axios from 'axios';
+import { BACKEND_URL } from '../../config/api';
 
 
 
@@ -68,7 +69,7 @@ const Register = () => {
         password: formData.get('password'),
         image: imageFile?.name,
       });
-      const response = await axios.post('http://localhost:3000/users/register', formData, {
+      const response = await axios.post(`${BACKEND_URL}/users/register`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       console.log(response.data);

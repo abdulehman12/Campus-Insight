@@ -17,6 +17,7 @@ import {
   Plus,
   Paperclip,
 } from 'lucide-react';
+import { BACKEND_URL } from '../../config/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -303,7 +304,7 @@ const CreateInsight = ({ onSuccess }: CreateInsightProps) => {
     }
 
     try {
-      const res = await fetch('http://localhost:3000/insights/create-insight', {
+      const res = await fetch(`${BACKEND_URL}/insights/create-insight`, {
         method: 'POST',
         headers: {
           // Do NOT explicitly declare Content-Type here; browser will automatically set boundary boundaries

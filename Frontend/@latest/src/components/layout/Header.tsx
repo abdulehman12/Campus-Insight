@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme.ts';
+import { BACKEND_URL } from '../../config/api.ts';
 
 interface StoredUser {
   username: string;
@@ -29,8 +30,6 @@ interface StoredUser {
   image?: string;
   email?: string;
 }
-
-const BASE_URL = 'http://localhost:3000';
 
 const navItems = [
   { icon: Home,         label: 'Feed',          path: '/',              type: null },
@@ -46,7 +45,7 @@ const navItems = [
 const getAvatarSrc = (image?: string, username?: string): string => {
   if (!image || image === 'default.png')
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(username ?? 'U')}&background=6366f1&color=fff&size=80&bold=true`;
-  if (!image.startsWith('http')) return `${BASE_URL}/uploads/profiles/${image}`;
+  if (!image.startsWith('http')) return `${BACKEND_URL}/uploads/profiles/${image}`;
   return image;
 };
 

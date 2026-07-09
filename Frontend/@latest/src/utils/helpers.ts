@@ -1,5 +1,6 @@
 // API Configuration
-export const API_BASE = 'http://localhost:3000';
+import { BACKEND_URL } from '../config/api';
+export const API_BASE = BACKEND_URL;
 export const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=6366f1&color=fff&size=80';
 
 // Local Storage Helpers
