@@ -16,6 +16,7 @@ const authHeaders  = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${getAdminToken()}`,
 });
+const BASE_URL = BACKEND_URL;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface AdminUser {
